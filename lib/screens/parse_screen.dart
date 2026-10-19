@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
+import '../download/download_service.dart';
+import '../parser/parse_controller.dart';
+import '../parser/parse_result.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_card.dart';
@@ -16,10 +20,29 @@ class ParseScreen extends StatefulWidget {
 
 class _ParseScreenState extends State<ParseScreen> {
   final TextEditingController _linkController = TextEditingController();
-  bool _parsing = false;
+  final ParseController _parse = ParseController();
+  bool _downloading = false;
+  double _progress = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _parse.addListener(_onParseChanged);
+  }
+
+  void _onParseChanged() {
+    if (!mounted) return;
+    setState(() {});
+    final error = _parse.error;
+    if (error != null && _parse.stage == ParseStage.error) {
+      _toast(error);
+    }
+  }
 
   @override
   void dispose() {
+    _parse.removeListener(_onParseChanged);
+    _parse.dispose();
     _linkController.dispose();
     super.dispose();
   }
@@ -42,18 +65,42 @@ class _ParseScreenState extends State<ParseScreen> {
     _toast('已粘贴分享链接');
   }
 
-  Future<void> _parse() async {
+  Future<void> _startParse() async {
     final text = _linkController.text.trim();
     if (text.isEmpty) {
       _toast('先粘贴一条分享链接');
       return;
     }
     FocusScope.of(context).unfocus();
-    setState(() => _parsing = true);
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (!mounted) return;
-    setState(() => _parsing = false);
-    _toast('解析能力接入中，下一步将返回无水印直链');
+    await _parse.parse(text);
+  }
+
+  Future<void> _download() async {
+    final result = _parse.result;
+    if (result == null || result.videoUrls.isEmpty) return;
+    setState(() {
+      _downloading = true;
+      _progress = 0;
+    });
+    try {
+      final file = await DownloadService.download(
+        result.videoUrls.first,
+        result.fileName,
+        onProgress: (received, total) {
+          if (!mounted || total <= 0) return;
+          final p = received / total;
+          if ((p - _progress).abs() >= 0.01) {
+            setState(() => _progress = p);
+          }
+        },
+      );
+      if (!mounted) return;
+      _toast('已保存：${file.path.split('/').last}');
+    } catch (e) {
+      if (mounted) _toast('下载失败：$e');
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
   }
 
   @override
@@ -75,11 +122,25 @@ class _ParseScreenState extends State<ParseScreen> {
               Text('粘贴分享链接，自动解析原始视频地址', style: AppText.sub(context)),
               const SizedBox(height: 24),
               _buildInputCard(context),
+              if (_parse.stage == ParseStage.done && _parse.result != null) ...[
+                const SizedBox(height: 16),
+                _buildResultCard(context, _parse.result!),
+              ],
               const SizedBox(height: 28),
               _buildPlatforms(context),
               const SizedBox(height: 28),
               _buildRecent(context),
             ],
+          ),
+        ),
+        // 隐藏 WebView：放在屏幕外，保持正常尺寸以便页面 JS 正常执行
+        Positioned(
+          left: -1200,
+          top: -1200,
+          child: SizedBox(
+            width: 420,
+            height: 900,
+            child: WebViewWidget(controller: _parse.web),
           ),
         ),
       ],
@@ -109,6 +170,7 @@ class _ParseScreenState extends State<ParseScreen> {
 
   Widget _buildInputCard(BuildContext context) {
     final p = context.palette;
+    final busy = _parse.busy;
     return AppCard(
       padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
       child: Column(
@@ -120,6 +182,7 @@ class _ParseScreenState extends State<ParseScreen> {
             style: AppText.body(context),
             cursorColor: p.accent,
             cursorWidth: 2,
+            enabled: !busy,
             decoration: InputDecoration(
               hintText: '粘贴抖音分享链接…',
               hintStyle: TextStyle(fontSize: 13.5, color: p.faint),
@@ -131,16 +194,103 @@ class _ParseScreenState extends State<ParseScreen> {
           const SizedBox(height: 4),
           Row(
             children: [
-              _PasteButton(onTap: _paste),
+              _PasteButton(onTap: busy ? null : _paste),
               const Spacer(),
               PrimaryButton(
-                label: '开始解析',
+                label: _stageLabel(),
                 icon: Icons.bolt_rounded,
                 height: 40,
-                loading: _parsing,
-                onPressed: _parse,
+                loading: busy,
+                onPressed: busy ? null : _startParse,
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _stageLabel() {
+    switch (_parse.stage) {
+      case ParseStage.resolving:
+        return '识别中';
+      case ParseStage.loading:
+        return '加载中';
+      case ParseStage.parsing:
+        return '解析中';
+      default:
+        return '开始解析';
+    }
+  }
+
+  Widget _buildResultCard(BuildContext context, ParseResult result) {
+    final p = context.palette;
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+            child: AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Image.network(
+                result.coverUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: p.cardAlt,
+                  child: Icon(Icons.movie_outlined, color: p.faint, size: 36),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  result.displayTitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 14, height: 1.4, fontWeight: FontWeight.w600, color: p.text),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        result.author.isEmpty ? '抖音' : '@${result.author}',
+                        style: AppText.label(context),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(result.durationText, style: AppText.label(context)),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                if (_downloading) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: _progress == 0 ? null : _progress,
+                      minHeight: 6,
+                      backgroundColor: p.cardAlt,
+                      valueColor: AlwaysStoppedAnimation(p.accent),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text('下载中 ${(_progress * 100).toStringAsFixed(0)}%', style: AppText.label(context)),
+                ] else
+                  PrimaryButton(
+                    label: '下载无水印视频',
+                    icon: Icons.download_rounded,
+                    height: 42,
+                    expand: true,
+                    onPressed: _download,
+                  ),
+              ],
+            ),
           ),
         ],
       ),
@@ -210,7 +360,7 @@ class _ParseScreenState extends State<ParseScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '还没有解析记录',
+                      _parse.stage == ParseStage.done ? '本次解析结果已生成' : '还没有解析记录',
                       style: TextStyle(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w500,
@@ -233,7 +383,7 @@ class _ParseScreenState extends State<ParseScreen> {
 class _PasteButton extends StatelessWidget {
   const _PasteButton({required this.onTap});
 
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

@@ -32,7 +32,7 @@ API = "https://api.github.com"
 EXCLUDED_DIRS = {
     ".git", ".gradle", "build", ".idea", ".operit", ".backup",
     "keystore", "__pycache__", "output", ".cxx", ".externalNativeBuild",
-    ".dart_tool", ".pub-cache",
+    ".dart_tool", ".pub-cache", "release",
 }
 
 EXCLUDED_SUFFIXES = (

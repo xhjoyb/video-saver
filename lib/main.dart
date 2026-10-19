@@ -44,7 +44,7 @@ class VideoSaverApp extends StatelessWidget {
                   builder: (_) => const ParseProbeScreen(),
                 );
               }
-              return MaterialPageRoute(builder: (_) => const ParseProbeScreen());
+              return MaterialPageRoute(builder: (_) => const RootShell());
             },
             builder: (context, child) {
               return AppBackground(child: child ?? const SizedBox.shrink());
