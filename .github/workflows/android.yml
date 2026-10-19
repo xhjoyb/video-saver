@@ -15,6 +15,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,15 +49,28 @@ jobs:
           fi
           ls -l keystore/release.jks
 
+      - name: Gradle version (downloads distribution)
+        timeout-minutes: 10
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --version --console=plain
+
+      - name: Resolve dependencies
+        timeout-minutes: 15
+        run: |
+          ./gradlew :app:dependencies --configuration releaseRuntimeClasspath --console=plain
+
       - name: Build release APK
+        timeout-minutes: 25
         env:
           KS_FILE: keystore/release.jks
           KS_PASS: videosaver2025
           KS_ALIAS: videosaver
           KS_KEY_PASS: videosaver2025
         run: |
-          chmod +x ./gradlew
-          ./gradlew :app:assembleRelease --no-daemon --stacktrace
+          ./gradlew :app:assembleRelease --stacktrace --console=plain \
+            -Dorg.gradle.internal.http.connectionTimeout=30000 \
+            -Dorg.gradle.internal.http.socketTimeout=60000
 
       - name: Show APK info
         run: |
