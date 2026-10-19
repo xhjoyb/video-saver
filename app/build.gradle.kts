@@ -21,7 +21,8 @@ android {
         create("ci") {
             val ksPath = System.getenv("KS_FILE")
             if (!ksPath.isNullOrBlank()) {
-                storeFile = file(ksPath)
+                // 注意：KS_FILE 是相对仓库根的路径，module 内的 file() 会按 app/ 解析
+                storeFile = rootProject.file(ksPath)
                 storePassword = System.getenv("KS_PASS")
                 keyAlias = System.getenv("KS_ALIAS")
                 keyPassword = System.getenv("KS_KEY_PASS")
