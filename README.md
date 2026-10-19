@@ -11,12 +11,33 @@
 
 | 阶段 | 状态 |
 |---|---|
-| 云端构建链路 + 固定签名 + Release 交付 | 进行中（本次提交验证） |
+| 云端构建链路 + 固定签名 + Release 交付 | ✅ 已验证（build-4 装机冒烟通过） |
 | 解析器抽象层 | 待开始 |
 | 抖音无水印解析 | 待开始 |
 | 下载与保存 | 待开始 |
 | 分享接收 / 剪贴板识别 | 待开始 |
 | 多平台扩展 | 待开始 |
+
+## 构建产物与安装
+
+每次 push 到 `main` → Actions 构建 → 生成 Release（Tag `build-<run_number>`）附 `app-release.apk`。
+
+本机 `github.com:443` 不通，Release 资产单连接很慢，用多线程 Range 下载：
+
+```sh
+GH_TOKEN=$(gh auth token --user xhjoyb) python3 tools/dl_asset.py \
+  --owner xhjoyb --repo video-saver --tag build-4 \
+  --name app-release.apk --out release/videosaver.apk --threads 8
+```
+
+安装（Android 13+ 需先落到 /data/local/tmp）：
+
+```sh
+su -c 'cp /sdcard/Download/videosaver.apk /data/local/tmp/v.apk && pm install -r /data/local/tmp/v.apk'
+su -c 'am start --user 0 -n com.xhjoyb.videosaver/com.xhjoyb.videosaver.MainActivity'
+```
+
+> 注意：本机 `am start` 不带 `--user 0` 会报 `Failed transaction`；带 `--user 0` 正常。
 
 ## 目录结构
 

@@ -32,9 +32,16 @@ jobs:
           key: videosaver-keystore-v1
 
       - name: Ensure signing keystore
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
         run: |
           mkdir -p keystore
-          if [ ! -f keystore/release.jks ]; then
+          if [ -n "$KS_B64" ]; then
+            printf '%s' "$KS_B64" | base64 -d > keystore/release.jks
+            echo "keystore restored from repository secret"
+          elif [ -f keystore/release.jks ]; then
+            echo "keystore restored from actions cache"
+          else
             keytool -genkeypair -v \
               -keystore keystore/release.jks \
               -storetype PKCS12 \
@@ -42,8 +49,11 @@ jobs:
               -keyalg RSA -keysize 2048 -validity 10950 \
               -storepass videosaver2025 -keypass videosaver2025 \
               -dname "CN=VideoSaver, OU=Dev, O=xhjoyb, L=CN, ST=CN, C=CN"
+            echo "keystore generated"
           fi
           ls -l keystore/release.jks
+          keytool -list -v -keystore keystore/release.jks -storepass videosaver2025 2>/dev/null \
+            | grep -E "Owner|Valid from|SHA1:|SHA256:" | head -4
 
       - name: Gradle version (downloads distribution)
         timeout-minutes: 10
