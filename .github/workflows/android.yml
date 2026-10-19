@@ -8,10 +8,6 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: android-ci-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -68,9 +64,12 @@ jobs:
           KS_ALIAS: videosaver
           KS_KEY_PASS: videosaver2025
         run: |
-          ./gradlew :app:assembleRelease --stacktrace --console=plain \
+          timeout -k 20 1200 ./gradlew :app:assembleRelease --stacktrace --console=plain \
             -Dorg.gradle.internal.http.connectionTimeout=30000 \
-            -Dorg.gradle.internal.http.socketTimeout=60000
+            -Dorg.gradle.internal.http.socketTimeout=60000 || {
+              echo "::error::Gradle build timed out or failed (exit $?)";
+              exit 1;
+            }
 
       - name: Show APK info
         run: |
