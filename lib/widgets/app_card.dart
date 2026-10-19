@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
+import '../theme/app_palette.dart';
 
 /// 实色卡片：明确的边界，保证深色界面里有清晰分组
 class AppCard extends StatelessWidget {
@@ -23,13 +23,14 @@ class AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final borderRadius = BorderRadius.circular(radius);
     final content = Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: color ?? AppColors.card,
+        color: color ?? p.card,
         borderRadius: borderRadius,
-        border: Border.all(color: borderColor ?? AppColors.border),
+        border: Border.all(color: borderColor ?? p.border),
       ),
       child: child,
     );

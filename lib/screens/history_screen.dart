@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_palette.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_card.dart';
 
@@ -8,15 +9,16 @@ class HistoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return SafeArea(
       bottom: false,
       child: ListView(
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 120),
         children: [
-          const Text('解析记录', style: AppText.title),
+          Text('解析记录', style: AppText.title(context)),
           const SizedBox(height: 6),
-          const Text('解析过的视频会保存在这里', style: AppText.label),
+          Text('解析过的视频会保存在这里', style: AppText.label(context)),
           const SizedBox(height: 24),
           AppCard(
             padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
@@ -26,36 +28,36 @@ class HistoryScreen extends StatelessWidget {
                   width: 52,
                   height: 52,
                   decoration: BoxDecoration(
-                    color: AppColors.cardAlt,
+                    color: p.cardAlt,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Icon(Icons.history_rounded, size: 22, color: AppColors.faint),
+                  child: Icon(Icons.history_rounded, size: 22, color: p.faint),
                 ),
                 const SizedBox(height: 14),
-                const Text(
+                Text(
                   '暂无记录',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.text,
+                    color: p.text,
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   '完成第一次解析后，这里会出现视频封面与下载入口',
                   textAlign: TextAlign.center,
-                  style: AppText.label,
+                  style: AppText.label(context),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 20),
           Row(
-            children: const [
+            children: [
               Expanded(child: _StatCard(label: '已解析', value: '0')),
-              SizedBox(width: 10),
+              const SizedBox(width: 10),
               Expanded(child: _StatCard(label: '已下载', value: '0')),
-              SizedBox(width: 10),
+              const SizedBox(width: 10),
               Expanded(child: _StatCard(label: '占用空间', value: '0 MB')),
             ],
           ),
@@ -81,14 +83,14 @@ class _StatCard extends StatelessWidget {
         children: [
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: AppColors.text,
+              color: context.palette.text,
             ),
           ),
           const SizedBox(height: 4),
-          Text(label, style: AppText.label),
+          Text(label, style: AppText.label(context)),
         ],
       ),
     );

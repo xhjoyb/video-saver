@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
+import '../theme/app_palette.dart';
 
 /// 主按钮：唯一的高饱和元素，承担页面主操作
 class PrimaryButton extends StatefulWidget {
@@ -32,6 +32,7 @@ class _PrimaryButtonState extends State<PrimaryButton> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     final button = AnimatedScale(
       scale: _pressed ? 0.98 : 1,
       duration: const Duration(milliseconds: 100),
@@ -40,7 +41,7 @@ class _PrimaryButtonState extends State<PrimaryButton> {
         padding: const EdgeInsets.symmetric(horizontal: 20),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          gradient: AppGradients.brand,
+          gradient: LinearGradient(colors: [p.accent, p.accent2]),
           borderRadius: BorderRadius.circular(12),
         ),
         child: widget.loading

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../theme/app_palette.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_card.dart';
 import '../widgets/platform_item.dart';
@@ -57,26 +58,27 @@ class _ParseScreenState extends State<ParseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return Stack(
       children: [
-        const _TopGlow(),
+        _TopGlow(color: p.accent),
         SafeArea(
           bottom: false,
           child: ListView(
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
             children: [
-              _buildHeader(),
+              _buildHeader(p),
               const SizedBox(height: 28),
-              const Text('解析抖音视频\n保存无水印原片', style: AppText.hero),
+              Text('解析抖音视频\n保存无水印原片', style: AppText.hero(context)),
               const SizedBox(height: 10),
-              const Text('粘贴分享链接，自动解析原始视频地址', style: AppText.sub),
+              Text('粘贴分享链接，自动解析原始视频地址', style: AppText.sub(context)),
               const SizedBox(height: 24),
-              _buildInputCard(),
+              _buildInputCard(context),
               const SizedBox(height: 28),
-              _buildPlatforms(),
+              _buildPlatforms(context),
               const SizedBox(height: 28),
-              _buildRecent(),
+              _buildRecent(context),
             ],
           ),
         ),
@@ -84,29 +86,29 @@ class _ParseScreenState extends State<ParseScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(AppPalette p) {
     return Row(
       children: [
         Container(
           width: 32,
           height: 32,
           decoration: BoxDecoration(
-            gradient: AppGradients.brand,
+            gradient: LinearGradient(colors: [p.accent, p.accent2]),
             borderRadius: BorderRadius.circular(10),
           ),
           child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
         ),
         const SizedBox(width: 10),
-        const Text(
+        Text(
           '视频嗅探',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.text),
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.text),
         ),
-        const Spacer(),
       ],
     );
   }
 
-  Widget _buildInputCard() {
+  Widget _buildInputCard(BuildContext context) {
+    final p = context.palette;
     return AppCard(
       padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
       child: Column(
@@ -115,15 +117,15 @@ class _ParseScreenState extends State<ParseScreen> {
             controller: _linkController,
             minLines: 1,
             maxLines: 3,
-            style: AppText.body,
-            cursorColor: AppColors.accent,
+            style: AppText.body(context),
+            cursorColor: p.accent,
             cursorWidth: 2,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: '粘贴抖音分享链接…',
-              hintStyle: TextStyle(fontSize: 13.5, color: AppColors.faint),
+              hintStyle: TextStyle(fontSize: 13.5, color: p.faint),
               border: InputBorder.none,
               isDense: true,
-              contentPadding: EdgeInsets.symmetric(vertical: 12),
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
             ),
           ),
           const SizedBox(height: 4),
@@ -145,20 +147,20 @@ class _ParseScreenState extends State<ParseScreen> {
     );
   }
 
-  Widget _buildPlatforms() {
+  Widget _buildPlatforms(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          children: const [
-            Text('支持平台', style: AppText.section),
-            Spacer(),
-            Text('抖音已接入', style: AppText.label),
+          children: [
+            Text('支持平台', style: AppText.section(context)),
+            const Spacer(),
+            Text('抖音已接入', style: AppText.label(context)),
           ],
         ),
         const SizedBox(height: 14),
-        Row(
-          children: const [
+        const Row(
+          children: [
             Expanded(
               child: PlatformItem(
                 name: '抖音',
@@ -176,15 +178,16 @@ class _ParseScreenState extends State<ParseScreen> {
     );
   }
 
-  Widget _buildRecent() {
+  Widget _buildRecent(BuildContext context) {
+    final p = context.palette;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          children: const [
-            Text('最近解析', style: AppText.section),
-            Spacer(),
-            Text('查看全部', style: AppText.label),
+          children: [
+            Text('最近解析', style: AppText.section(context)),
+            const Spacer(),
+            Text('查看全部', style: AppText.label(context)),
           ],
         ),
         const SizedBox(height: 12),
@@ -196,23 +199,26 @@ class _ParseScreenState extends State<ParseScreen> {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: AppColors.cardAlt,
+                  color: p.cardAlt,
                   borderRadius: BorderRadius.circular(11),
                 ),
-                child: const Icon(Icons.movie_outlined, size: 18, color: AppColors.faint),
+                child: Icon(Icons.movie_outlined, size: 18, color: p.faint),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text('还没有解析记录', style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.text,
-                    )),
-                    SizedBox(height: 3),
-                    Text('先粘贴一条链接试试', style: AppText.label),
+                  children: [
+                    Text(
+                      '还没有解析记录',
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w500,
+                        color: p.text,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text('先粘贴一条链接试试', style: AppText.label(context)),
                   ],
                 ),
               ),
@@ -231,22 +237,23 @@ class _PasteButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         height: 40,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: AppColors.cardAlt,
+          color: p.cardAlt,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: p.border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          children: const [
-            Icon(Icons.content_paste_rounded, size: 14, color: AppColors.dim),
-            SizedBox(width: 6),
-            Text('粘贴', style: TextStyle(fontSize: 12.5, color: AppColors.dim)),
+          children: [
+            Icon(Icons.content_paste_rounded, size: 14, color: p.dim),
+            const SizedBox(width: 6),
+            Text('粘贴', style: TextStyle(fontSize: 12.5, color: p.dim)),
           ],
         ),
       ),
@@ -254,9 +261,11 @@ class _PasteButton extends StatelessWidget {
   }
 }
 
-/// 顶部单点光晕：径向渐变自然淡出，不铺满整屏，避免背景显脏
+/// 顶部单点光晕：径向渐变自然淡出，不铺满整屏
 class _TopGlow extends StatelessWidget {
-  const _TopGlow();
+  const _TopGlow({required this.color});
+
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -271,8 +280,8 @@ class _TopGlow extends StatelessWidget {
             shape: BoxShape.circle,
             gradient: RadialGradient(
               colors: [
-                AppColors.accent.withOpacity(0.16),
-                AppColors.accent.withOpacity(0),
+                color.withOpacity(0.18),
+                color.withOpacity(0),
               ],
             ),
           ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
+import '../theme/app_palette.dart';
 
 /// 平台入口：图标 + 名称，激活平台用主色描边
 class PlatformItem extends StatelessWidget {
@@ -21,6 +21,7 @@ class PlatformItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -34,16 +35,16 @@ class PlatformItem extends StatelessWidget {
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: active ? AppColors.accent.withOpacity(0.10) : AppColors.card,
+                  color: active ? p.accent.withOpacity(0.10) : p.card,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: active ? AppColors.accent.withOpacity(0.34) : AppColors.border,
+                    color: active ? p.accent.withOpacity(0.34) : p.border,
                   ),
                 ),
                 child: Icon(
                   icon,
                   size: 20,
-                  color: active ? AppColors.accent : AppColors.faint,
+                  color: active ? p.accent : p.faint,
                 ),
               ),
               if (badge != null)
@@ -53,7 +54,7 @@ class PlatformItem extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                     decoration: BoxDecoration(
-                      gradient: AppGradients.brand,
+                      gradient: LinearGradient(colors: [p.accent, p.accent2]),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -75,7 +76,7 @@ class PlatformItem extends StatelessWidget {
             style: TextStyle(
               fontSize: 11,
               fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-              color: active ? AppColors.text : AppColors.faint,
+              color: active ? p.text : p.faint,
             ),
           ),
         ],
