@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../theme/app_palette.dart';
@@ -103,6 +105,7 @@ class _ParseProbeScreenState extends State<ParseProbeScreen> {
         text = jsonDecode(text) as String;
       }
       final decoded = jsonDecode(text) as Map<String, dynamic>;
+      await _dump(text);
       if (!mounted) return;
       setState(() {
         _result = decoded;
@@ -113,6 +116,18 @@ class _ParseProbeScreenState extends State<ParseProbeScreen> {
     } catch (e) {
       if (mounted) setState(() => _status = '探测失败：$e');
     }
+  }
+
+  Future<void> _dump(String text) async {
+    // 结果同时写文件与 logcat，便于无 UI 时取证
+    try {
+      final dir = await getExternalStorageDirectory();
+      if (dir != null) {
+        await File('${dir.path}/probe_result.json').writeAsString(text);
+      }
+    } catch (_) {}
+    // ignore: avoid_print
+    print('PROBE_RESULT $text');
   }
 
   @override
