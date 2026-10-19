@@ -34,6 +34,7 @@ def main():
     ap.add_argument("--owner", required=True)
     ap.add_argument("--repo", required=True)
     ap.add_argument("--name", default="keystore-backup")
+    ap.add_argument("--ext", default=".jks", help="zip 内要提取的文件扩展名，如 .jks / .apk")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
@@ -86,11 +87,11 @@ def main():
     print("entries:", names)
     target = None
     for n in names:
-        if n.endswith(".jks") or n.endswith(".keystore"):
+        if n.endswith(args.ext):
             target = n
             break
     if not target:
-        print("zip 中找不到 keystore")
+        print(f"zip 中找不到 {args.ext} 文件")
         return 1
 
     os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)

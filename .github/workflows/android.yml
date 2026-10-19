@@ -96,14 +96,6 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Backup keystore artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: keystore-backup
-          path: keystore/release.jks
-          if-no-files-found: error
-          retention-days: 3
-
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -111,4 +103,13 @@ jobs:
           TAG="build-${{ github.run_number }}"
           APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
           NOTES=$(printf '自动构建 %s\n\ncommit: %s\nrun: %s\n' "$TAG" "${GITHUB_SHA:0:7}" "${{ github.run_number }}")
-          gh release create "$TAG" "$APK" --title "VideoSaver $TAG" --notes "$NOTES" || true
+          for attempt in 1 2 3 4 5; do
+            if gh release create "$TAG" "$APK" --title "VideoSaver $TAG" --notes "$NOTES"; then
+              echo "release $TAG published"
+              exit 0
+            fi
+            echo "attempt $attempt failed, retry in $((attempt * 5))s"
+            sleep $((attempt * 5))
+          done
+          echo "::warning::GitHub Release 发布失败（runner 到 api.github.com 网络问题），APK 仍可在 artifact 获取"
+          exit 0
