@@ -13,7 +13,7 @@ import '../theme/app_theme.dart';
 class ParseProbeScreen extends StatefulWidget {
   const ParseProbeScreen({
     super.key,
-    this.initialUrl = 'https://v.douyin.com/ZIzGpt-k4Yk/',
+    this.initialUrl = 'https://www.iesdouyin.com/share/video/7695215729926784320/',
   });
 
   final String initialUrl;
@@ -69,11 +69,9 @@ class _ParseProbeScreenState extends State<ParseProbeScreen> {
           },
           onPageFinished: (url) async {
             if (!mounted) return;
-            setState(() => _status = '页面已加载，等待 JS 渲染…');
-            await Future.delayed(const Duration(seconds: 3));
-            if (!mounted) return;
+            setState(() => _status = '页面已加载，立即探测…');
             await _probe();
-            await Future.delayed(const Duration(seconds: 3));
+            await Future.delayed(const Duration(milliseconds: 800));
             if (!mounted) return;
             await _probe();
           },
@@ -83,6 +81,7 @@ class _ParseProbeScreenState extends State<ParseProbeScreen> {
         ),
       );
     _load();
+    _dump('{"stage":"started"}');
   }
 
   Future<void> _load() async {
