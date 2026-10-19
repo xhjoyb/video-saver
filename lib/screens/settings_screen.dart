@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../dev/parse_probe_screen.dart';
 import '../state/app_settings.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_theme.dart';
@@ -206,6 +207,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: () => _toast('当前为私有仓库'),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          _groupTitle(context, '开发者'),
+          AppCard(
+            padding: EdgeInsets.zero,
+            child: _RowTile(
+              icon: Icons.bug_report_outlined,
+              title: '解析探针',
+              subtitle: '用 WebView 打开分享页，抓取视频地址与接口线索',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ParseProbeScreen()),
+                );
+              },
             ),
           ),
           const SizedBox(height: 28),
