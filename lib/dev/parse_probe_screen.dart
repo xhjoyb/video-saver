@@ -123,6 +123,7 @@ class _ParseProbeScreenState extends State<ParseProbeScreen> {
     try {
       final dir = await getExternalStorageDirectory();
       if (dir != null) {
+        await dir.create(recursive: true);
         await File('${dir.path}/probe_result.json').writeAsString(text);
       }
     } catch (_) {}
