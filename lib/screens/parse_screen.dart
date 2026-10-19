@@ -102,14 +102,6 @@ class _ParseScreenState extends State<ParseScreen> {
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.text),
         ),
         const Spacer(),
-        GestureDetector(
-          onTap: () => _toast('设置页在下方导航'),
-          behavior: HitTestBehavior.opaque,
-          child: const Padding(
-            padding: EdgeInsets.all(6),
-            child: Icon(Icons.settings_outlined, size: 20, color: AppColors.faint),
-          ),
-        ),
       ],
     );
   }
