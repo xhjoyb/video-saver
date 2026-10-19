@@ -78,7 +78,7 @@ jobs:
           KS_ALIAS: videosaver
           KS_KEY_PASS: videosaver2025
         run: |
-          timeout -k 20 1500 flutter build apk --release || {
+          timeout -k 20 1500 flutter build apk --release --target-platform android-arm64 || {
             echo "::error::flutter build apk 失败或超时";
             exit 1;
           }
@@ -102,7 +102,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="build-${{ github.run_number }}"
+          TAG="flutter-${GITHUB_RUN_NUMBER}"
           APK=$(ls build/app/outputs/flutter-apk/*.apk | head -1)
           NOTES=$(printf 'Flutter 构建 %s\n\ncommit: %s\nrun: %s\n' "$TAG" "${GITHUB_SHA:0:7}" "${{ github.run_number }}")
           for attempt in 1 2 3 4 5; do
