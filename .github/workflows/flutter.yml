@@ -1,0 +1,117 @@
+name: Flutter CI
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: stable
+          cache: true
+
+      - name: Restore signing keystore
+        uses: actions/cache@v4
+        with:
+          path: keystore
+          key: videosaver-keystore-v1
+
+      - name: Ensure signing keystore
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          mkdir -p keystore
+          if [ -n "$KS_B64" ]; then
+            printf '%s' "$KS_B64" | base64 -d > keystore/release.jks
+            echo "keystore restored from repository secret"
+          elif [ -f keystore/release.jks ]; then
+            echo "keystore restored from actions cache"
+          else
+            keytool -genkeypair -v \
+              -keystore keystore/release.jks \
+              -storetype PKCS12 \
+              -alias videosaver \
+              -keyalg RSA -keysize 2048 -validity 10950 \
+              -storepass videosaver2025 -keypass videosaver2025 \
+              -dname "CN=VideoSaver, OU=Dev, O=xhjoyb, L=CN, ST=CN, C=CN"
+            echo "keystore generated"
+          fi
+          ls -l keystore/release.jks
+          keytool -list -v -keystore keystore/release.jks -storepass videosaver2025 2>/dev/null \
+            | grep -E "SHA1:|SHA256:" | head -2
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Pub get
+        timeout-minutes: 10
+        run: flutter pub get
+
+      - name: Analyze
+        timeout-minutes: 10
+        run: flutter analyze --no-fatal-infos || true
+
+      - name: Build release APK
+        timeout-minutes: 30
+        env:
+          KS_FILE: ${{ github.workspace }}/keystore/release.jks
+          KS_PASS: videosaver2025
+          KS_ALIAS: videosaver
+          KS_KEY_PASS: videosaver2025
+        run: |
+          timeout -k 20 1500 flutter build apk --release || {
+            echo "::error::flutter build apk 失败或超时";
+            exit 1;
+          }
+
+      - name: Show APK info
+        run: |
+          ls -lh build/app/outputs/flutter-apk/
+          APK=$(ls build/app/outputs/flutter-apk/*.apk | head -1)
+          echo "APK=$APK"
+          sha256sum "$APK"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: videosaver-apk
+          path: build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="build-${{ github.run_number }}"
+          APK=$(ls build/app/outputs/flutter-apk/*.apk | head -1)
+          NOTES=$(printf 'Flutter 构建 %s\n\ncommit: %s\nrun: %s\n' "$TAG" "${GITHUB_SHA:0:7}" "${{ github.run_number }}")
+          for attempt in 1 2 3 4 5; do
+            if gh release create "$TAG" "$APK" --title "VideoSaver $TAG" --notes "$NOTES"; then
+              echo "release $TAG published"
+              exit 0
+            fi
+            echo "attempt $attempt failed, retry in $((attempt * 5))s"
+            sleep $((attempt * 5))
+          done
+          echo "::warning::GitHub Release 发布失败（runner 网络问题），APK 仍可在 artifact 获取"
+          exit 0

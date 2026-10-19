@@ -1,0 +1,55 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    // Flutter Gradle Plugin 必须在 Android / Kotlin 插件之后应用
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+def keystorePath = System.getenv("KS_FILE")
+def hasKeystore = keystorePath != null && keystorePath.trim().length() > 0 && new File(keystorePath).exists()
+
+android {
+    namespace = "com.xhjoyb.videosaver"
+    compileSdk = 34
+    ndkVersion = flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_1_8
+    }
+
+    defaultConfig {
+        applicationId = "com.xhjoyb.videosaver"
+        minSdk = 26
+        targetSdk = 34
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+    }
+
+    signingConfigs {
+        if (hasKeystore) {
+            release {
+                storeFile = new File(keystorePath)
+                storePassword = System.getenv("KS_PASS")
+                keyAlias = System.getenv("KS_ALIAS")
+                keyPassword = System.getenv("KS_KEY_PASS")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig = hasKeystore ? signingConfigs.release : signingConfigs.debug
+            minifyEnabled = false
+            shrinkResources = false
+        }
+    }
+}
+
+flutter {
+    source = "../.."
+}

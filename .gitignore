@@ -1,27 +1,35 @@
-# Gradle / Android
-.gradle/
-build/
-*/build/
-local.properties
-captures/
-.externalNativeBuild/
-.cxx/
-*.iml
-.idea/
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+**/build/
 
-# 签名与密钥（绝不入库）
-keystore/
+# Android
+android/.gradle/
+android/local.properties
+android/app/.cxx/
+android/key.properties
 *.jks
 *.keystore
 *.p12
-keystore.properties
 
 # 产物
 *.apk
 *.aab
 *.ap_
-*.dex
-output/
+
+# 签名与本地密钥（绝不入库）
+keystore/
+keystore.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
 
 # 系统
 .DS_Store

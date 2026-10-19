@@ -32,10 +32,11 @@ API = "https://api.github.com"
 EXCLUDED_DIRS = {
     ".git", ".gradle", "build", ".idea", ".operit", ".backup",
     "keystore", "__pycache__", "output", ".cxx", ".externalNativeBuild",
+    ".dart_tool", ".pub-cache",
 }
 
 EXCLUDED_SUFFIXES = (
-    ".apk", ".aab", ".jks", ".keystore", ".p12", ".ap_", ".dex",
+    ".apk", ".aab", ".jks", ".keystore", ".p12", ".ap_", ".dex", ".iml",
 )
 
 EXCLUDED_FILES = {
