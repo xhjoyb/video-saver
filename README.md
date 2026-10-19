@@ -3,92 +3,98 @@
 多平台视频解析下载 App。首个平台：**抖音短视频无水印**。
 
 - 包名：`com.xhjoyb.videosaver`
-- 技术栈：Kotlin + Jetpack Compose (Material3)，minSdk 26 / targetSdk 34
-- 构建：GitHub Actions 云端出包（本机无 JDK / Android SDK）
-- 产物：每次 push 到 `main` 自动构建，生成 Release（Tag `build-<run_number>`）附 APK
+- 技术栈：**Flutter 3.24.5** + Material 3（深色科技感）
+- Android：minSdk 26 / targetSdk 34，Kotlin 原生壳 `MainActivity`（FlutterActivity）
+- 构建：GitHub Actions 云端出包（本机无 JDK / Flutter SDK）
+- 产物：push 到 `main` 自动构建，生成 Release（Tag `flutter-<run_number>`）附 arm64 APK
 
 ## 当前进度
 
 | 阶段 | 状态 |
 |---|---|
-| 云端构建链路 + 固定签名 + Release 交付 | ✅ 已验证（build-4 装机冒烟通过） |
-| 解析器抽象层 | 待开始 |
+| 云端构建链路 + 固定签名 + Release 交付 | ✅ 已验证（build-6 与 Flutter 版均覆盖安装成功） |
+| Flutter 迁移 + 深色主题四屏 UI | ✅ 已完成（解析 / 记录 / 设置三页 + 玻璃卡片组件） |
+| 解析器抽象层（Dart） | 待开始 |
 | 抖音无水印解析 | 待开始 |
-| 下载与保存 | 待开始 |
-| 分享接收 / 剪贴板识别 | 待开始 |
-| 多平台扩展 | 待开始 |
+| 下载与相册落盘 | 待开始 |
+| 分享接收 / 剪贴板识别 | 剪贴板已接；ACTION_SEND 已在 Manifest 声明，待 Dart 侧处理 |
+
+## 目录结构
+
+```
+lib/
+  main.dart                 # App 入口 + 底部导航壳（IndexedStack）
+  theme/app_theme.dart      # 深色配色 / 渐变 / 文字层级
+  screens/
+    parse_screen.dart       # 解析页：光晕背景 + 玻璃输入卡 + 平台入口 + 空态
+    history_screen.dart     # 记录页：空态 + 统计卡
+    settings_screen.dart    # 设置页：下载 / 体验 / 关于 三组卡片
+  widgets/
+    glass_card.dart         # 玻璃拟态卡片（BackdropFilter）
+    gradient_button.dart    # 主渐变按钮（按压缩放 / loading）
+    platform_chip.dart      # 平台入口（激活 / 敬请期待）
+android/                    # flutter create 官方骨架 + 签名与 Manifest 定制
+.github/workflows/
+  flutter.yml               # 主构建流水线（签名 / APK / Release）
+  flutter-bootstrap.yml     # 手动触发：生成官方 Android 骨架并回传 artifact
+tools/                      # 本机辅助脚本（推送 / 下载 / CI 状态 / keystore）
+keystore/                   # 本地签名密钥（已 gitignore，CI 用 Secret）
+release/                    # 本地下载的安装包与截图
+```
+
+## 设计说明（方案 A · 深色科技感）
+
+- 背景 `#08080C`，卡片玻璃拟态（`BackdropFilter` + 半透明白描边）
+- 主色珊瑚红 `#FF3B5C` → 橙 `#FF7A45` 渐变，点缀青色 `#22D3EE`
+- 首页顶部双光晕随 7s 动画缓慢呼吸，向下渐变到纯黑
+- 底部导航为浮动胶囊，选中项展开图标 + 文字 + 白 6% 胶囊底
+- 全部页面使用 `BouncingScrollPhysics`，符合移动端手感
 
 ## 构建产物与安装
 
-每次 push 到 `main` → Actions 构建 → 生成 Release（Tag `build-<run_number>`）附 `app-release.apk`。
+push 到 `main` → Flutter CI → Release `flutter-<run_number>` 附 `app-release.apk`（仅 arm64，约 13–16MB）。
 
-本机 `github.com:443` 不通，Release 资产单连接很慢，用多线程 Range 下载：
+本机 `github.com:443` 不通、Release 资产单连接很慢，用多线程 Range 下载：
 
 ```sh
 GH_TOKEN=$(gh auth token --user xhjoyb) python3 tools/dl_asset.py \
-  --owner xhjoyb --repo video-saver --tag build-4 \
-  --name app-release.apk --out release/videosaver.apk --threads 8
+  --owner xhjoyb --repo video-saver --tag flutter-2 \
+  --name app-release.apk --out release/videosaver.apk --threads 16
 ```
 
-安装（Android 13+ 需先落到 /data/local/tmp）：
+安装与启动（Android 13+ 需先落 `/data/local/tmp`）：
 
 ```sh
 su -c 'cp /sdcard/Download/videosaver.apk /data/local/tmp/v.apk && pm install -r /data/local/tmp/v.apk'
 su -c 'am start --user 0 -n com.xhjoyb.videosaver/com.xhjoyb.videosaver.MainActivity'
 ```
 
-> 注意：本机 `am start` 不带 `--user 0` 会报 `Failed transaction`；带 `--user 0` 正常。
-
-## 目录结构
-
-```
-app/src/main/java/com/xhjoyb/videosaver/    # 应用代码（后续拆 parser / download / ui）
-app/src/main/res/                           # 资源
-.github/workflows/android.yml               # 云端构建流水线
-gradle/wrapper/                             # Gradle 8.7 wrapper
-tools/push_repo.py                          # 通过 Git Data API 推送（本机 github.com:443 不通）
-```
-
-## 本地推送说明
-
-本机 `git push` 到 github.com 会挂起（443 不通，`api.github.com` 正常），
-所有提交统一走 Git Data API 脚本：
-
-```sh
-GH_TOKEN=$(gh auth token --user xhjoyb) python3 tools/push_repo.py \
-  --owner xhjoyb --repo video-saver --branch main --dir . --message "feat: xxx"
-```
+> `am start` 不带 `--user 0` 会报 `Failed transaction`；带 `--user 0` 正常。
 
 ## 签名
 
-CI 首次运行用 `keytool` 生成 PKCS12 keystore（`keystore/release.jks`），
-目前已把该 keystore 固化为仓库 Secret `ANDROID_KEYSTORE_B64`（alias `videosaver`），
+keystore 已固化为仓库 Secret `ANDROID_KEYSTORE_B64`（PKCS12，alias `videosaver`），
 CI 优先从 Secret 还原，其次用 Actions Cache（key `videosaver-keystore-v1`），
-两者都没有时才现场生成。已实测跨构建签名一致：build-4 → build-6 覆盖安装成功，
-证书指纹均为 `763a3827`。
+都没有时才现场生成。实测跨版本签名一致：Kotlin 版 build-4 → build-6 → Flutter 版
+覆盖安装均成功，证书指纹 `763a3827`。
 
-## 已知问题与排查记录（踩过的坑）
+## 已知问题与排查记录
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
-| `Keystore file '.../app/keystore/release.jks' not found` | module 内 `file()` 按 `app/` 解析 | 改用 `rootProject.file(ksPath)` |
-| 推送成功但分支没变化 | 更新 ref 用了单数 `/git/ref/`，404 被静默容忍 | 改 `/git/refs/`，并校验返回的 sha |
-| `pm install` 报 Android 13 SELinux 拒绝 | 直接装 `/sdcard` 路径 | 先 `cp` 到 `/data/local/tmp/` 再装 |
-| `am start` 报 `Failed transaction` | 未指定 user | 使用 `am start --user 0 -n ...` |
-| Release 没生成但步骤显示 success | runner 到 `api.github.com` 偶发 i/o timeout，且命令后面跟了 `\|\| true` | Publish 步骤加 5 次退避重试，并输出 warning |
-| Release 资产下载很慢/中断 | `release-assets.githubusercontent.com` 单连接限速 | 用 `tools/dl_asset.py` 8 线程 Range 下载 |
+| `Keystore file '.../app/keystore/release.jks' not found`（历史） | module 内 `file()` 按 `app/` 解析 | 改为绝对路径 `KS_FILE` |
+| 推送成功但分支没变化 | 更新 ref 用了单数 `/git/ref/`，404 被静默容忍 | 改 `/git/refs/` 并校验返回 sha |
+| `pm install` 报 Android 13 SELinux 拒绝 | 直接装 `/sdcard` 路径 | 先 `cp` 到 `/data/local/tmp/` |
+| `am start` 报 `Failed transaction` | 未指定 user | `am start --user 0 -n ...` |
+| Release 没生成但步骤 success | runner 到 `api.github.com` 偶发 timeout，且跟了 `\|\| true` | Publish 加 5 次退避重试 + warning |
+| Release 下载慢/中断 | `release-assets.githubusercontent.com` 单连接限速 | `tools/dl_asset.py` 多线程 Range |
+| 两个 workflow 的 `run_number` 各自独立，tag 会撞车 | GitHub 语义 | Flutter 用 `flutter-<n>`、旧 Kotlin 用 `build-<n>` |
+| Flutter universal APK 45MB | 含 3 个 ABI 的引擎 | 改 `--target-platform android-arm64` |
+| 偶发 `Concurrent modification ... handleClearSelection` | Flutter 文本选择框架的已知竞态，非本工程逻辑 | 不崩溃、可忽略，等引擎版本升级 |
 
-构建耗时：首次约 5 分钟（含依赖下载），之后约 4 分钟（Gradle 缓存命中）。
+构建耗时：Flutter 首次约 8 分钟（含 SDK + 引擎下载），缓存命中后约 4–5 分钟。
 
-## 解析链路（设计）
+## 平台扩展路线
 
-```
-分享文本 → 提取 v.douyin.com 短链
-        → 跟随 302 得到 aweme_id
-        → 请求 iesdouyin share 页拿 _ROUTER_DATA
-        → 解析 video.play_addr.uri_list / images / music
-        → playwm → play 得无水印直链
-        → OkHttp 下载 → MediaStore 写 Movies/
-```
-
-三级降级：直接 HTTP → 带 Cookie 重试 → WebView 预热 Cookie。具体以实测结果为准。
+`lib` 侧按 `VideoParser` 抽象预留：`matches(url)` / `parse(url) → ParseResult`，
+新增平台只加实现类，UI 与下载层不动。首批计划：抖音 → 快手 → 小红书 → B 站。
