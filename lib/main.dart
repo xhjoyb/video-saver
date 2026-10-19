@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'dev/parse_probe_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/parse_screen.dart';
 import 'screens/settings_screen.dart';
@@ -35,10 +36,19 @@ class VideoSaverApp extends StatelessWidget {
             theme: buildAppTheme(AppPalette.light),
             darkTheme: buildAppTheme(AppPalette.dark),
             themeMode: settings.themeMode,
+            initialRoute:
+                WidgetsBinding.instance.platformDispatcher.defaultRouteName,
+            onGenerateRoute: (routeSettings) {
+              if (routeSettings.name == '/probe') {
+                return MaterialPageRoute(
+                  builder: (_) => const ParseProbeScreen(),
+                );
+              }
+              return MaterialPageRoute(builder: (_) => const RootShell());
+            },
             builder: (context, child) {
               return AppBackground(child: child ?? const SizedBox.shrink());
             },
-            home: const RootShell(),
           );
         },
       ),
