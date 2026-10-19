@@ -26,3 +26,7 @@ output/
 # 系统
 .DS_Store
 Thumbs.db
+
+# Operit 工作区内部目录（不属于项目）
+.operit/
+.backup/
