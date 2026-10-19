@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../theme/app_theme.dart';
-import '../widgets/glass_card.dart';
-import '../widgets/gradient_button.dart';
-import '../widgets/platform_chip.dart';
+import '../widgets/app_card.dart';
+import '../widgets/platform_item.dart';
+import '../widgets/primary_button.dart';
 
 class ParseScreen extends StatefulWidget {
   const ParseScreen({super.key});
@@ -13,25 +13,12 @@ class ParseScreen extends StatefulWidget {
   State<ParseScreen> createState() => _ParseScreenState();
 }
 
-class _ParseScreenState extends State<ParseScreen> with SingleTickerProviderStateMixin {
+class _ParseScreenState extends State<ParseScreen> {
   final TextEditingController _linkController = TextEditingController();
-  final FocusNode _focusNode = FocusNode();
-  late final AnimationController _halo;
   bool _parsing = false;
 
   @override
-  void initState() {
-    super.initState();
-    _halo = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 7),
-    )..repeat(reverse: true);
-  }
-
-  @override
   void dispose() {
-    _halo.dispose();
-    _focusNode.dispose();
     _linkController.dispose();
     super.dispose();
   }
@@ -42,18 +29,16 @@ class _ParseScreenState extends State<ParseScreen> with SingleTickerProviderStat
     );
   }
 
-  Future<void> _pasteFromClipboard() async {
+  Future<void> _paste() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text?.trim() ?? '';
     if (text.isEmpty) {
       _toast('剪贴板里没有可用的文本');
       return;
     }
-    setState(() {
-      _linkController.text = text;
-      _linkController.selection = TextSelection.collapsed(offset: text.length);
-    });
-    _toast('已从剪贴板粘贴');
+    _linkController.text = text;
+    _linkController.selection = TextSelection.collapsed(offset: text.length);
+    _toast('已粘贴分享链接');
   }
 
   Future<void> _parse() async {
@@ -64,36 +49,35 @@ class _ParseScreenState extends State<ParseScreen> with SingleTickerProviderStat
     }
     FocusScope.of(context).unfocus();
     setState(() => _parsing = true);
-    await Future.delayed(const Duration(milliseconds: 900));
+    await Future.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
     setState(() => _parsing = false);
-    _toast('解析引擎接入中，下一步将真正返回无水印直链');
+    _toast('解析能力接入中，下一步将返回无水印直链');
   }
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        _HaloBackground(animation: _halo),
+        const _TopGlow(),
         SafeArea(
           bottom: false,
-          child: SingleChildScrollView(
+          child: ListView(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(),
-                const SizedBox(height: 28),
-                _buildHero(),
-                const SizedBox(height: 22),
-                _buildInputCard(),
-                const SizedBox(height: 22),
-                _buildPlatforms(),
-                const SizedBox(height: 28),
-                _buildRecent(),
-              ],
-            ),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+            children: [
+              _buildHeader(),
+              const SizedBox(height: 28),
+              const Text('解析抖音视频\n保存无水印原片', style: AppText.hero),
+              const SizedBox(height: 10),
+              const Text('粘贴分享链接，自动解析原始视频地址', style: AppText.sub),
+              const SizedBox(height: 24),
+              _buildInputCard(),
+              const SizedBox(height: 28),
+              _buildPlatforms(),
+              const SizedBox(height: 28),
+              _buildRecent(),
+            ],
           ),
         ),
       ],
@@ -104,95 +88,26 @@ class _ParseScreenState extends State<ParseScreen> with SingleTickerProviderStat
     return Row(
       children: [
         Container(
-          width: 42,
-          height: 42,
+          width: 32,
+          height: 32,
           decoration: BoxDecoration(
             gradient: AppGradients.brand,
-            borderRadius: BorderRadius.circular(13),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.accent.withOpacity(0.4),
-                blurRadius: 18,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(10),
           ),
-          child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 26),
+          child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
         ),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '视频嗅探',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-                color: AppColors.text,
-                letterSpacing: 0.2,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'VIDEO SAVER',
-              style: TextStyle(
-                fontSize: 9.5,
-                letterSpacing: 2,
-                fontWeight: FontWeight.w500,
-                color: AppColors.textFaint.withOpacity(0.9),
-              ),
-            ),
-          ],
+        const SizedBox(width: 10),
+        const Text(
+          '视频嗅探',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.text),
         ),
         const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.045),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.06)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 5,
-                height: 5,
-                decoration: const BoxDecoration(
-                  color: AppColors.success,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 6),
-              const Text(
-                'v0.2.0 · 开发版',
-                style: TextStyle(fontSize: 10.5, color: AppColors.textDim),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildHero() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('粘贴链接，\n一键去水印', style: TextStyle(
-          fontSize: 30,
-          height: 1.26,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.8,
-          color: AppColors.text,
-        )),
-        const SizedBox(height: 12),
-        Text(
-          '解析抖音短视频原始地址，保存到相册，不留下平台水印。',
-          style: TextStyle(
-            fontSize: 13,
-            height: 1.6,
-            color: AppColors.textDim.withOpacity(0.95),
+        GestureDetector(
+          onTap: () => _toast('设置页在下方导航'),
+          behavior: HitTestBehavior.opaque,
+          child: const Padding(
+            padding: EdgeInsets.all(6),
+            child: Icon(Icons.settings_outlined, size: 20, color: AppColors.faint),
           ),
         ),
       ],
@@ -200,45 +115,34 @@ class _ParseScreenState extends State<ParseScreen> with SingleTickerProviderStat
   }
 
   Widget _buildInputCard() {
-    return GlassCard(
-      padding: const EdgeInsets.fromLTRB(16, 6, 12, 12),
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
       child: Column(
         children: [
           TextField(
             controller: _linkController,
-            focusNode: _focusNode,
             minLines: 1,
             maxLines: 3,
-            style: const TextStyle(fontSize: 14, color: AppColors.text, height: 1.5),
+            style: AppText.body,
             cursorColor: AppColors.accent,
             cursorWidth: 2,
-            decoration: InputDecoration(
-              hintText: '粘贴抖音分享链接，例如 https://v.douyin.com/…',
-              hintStyle: const TextStyle(fontSize: 13, color: AppColors.textFaint),
+            decoration: const InputDecoration(
+              hintText: '粘贴抖音分享链接…',
+              hintStyle: TextStyle(fontSize: 13.5, color: AppColors.faint),
               border: InputBorder.none,
               isDense: true,
-              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              contentPadding: EdgeInsets.symmetric(vertical: 12),
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 4),
           Row(
             children: [
-              _MiniAction(
-                icon: Icons.content_paste_rounded,
-                label: '粘贴',
-                onTap: _pasteFromClipboard,
-              ),
-              const SizedBox(width: 8),
-              _MiniAction(
-                icon: Icons.center_focus_strong_rounded,
-                label: '识别',
-                onTap: () => _toast('图片/二维码识别开发中'),
-              ),
+              _PasteButton(onTap: _paste),
               const Spacer(),
-              GradientButton(
-                label: '解析',
+              PrimaryButton(
+                label: '开始解析',
                 icon: Icons.bolt_rounded,
-                height: 42,
+                height: 40,
                 loading: _parsing,
                 onPressed: _parse,
               ),
@@ -254,29 +158,26 @@ class _ParseScreenState extends State<ParseScreen> with SingleTickerProviderStat
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          children: [
-            const Text('支持平台', style: TextStyle(
-              fontSize: 14.5,
-              fontWeight: FontWeight.w600,
-              color: AppColors.text,
-            )),
-            const SizedBox(width: 8),
-            Text('1 / 4 已接入', style: TextStyle(
-              fontSize: 11,
-              color: AppColors.textFaint.withOpacity(0.9),
-            )),
+          children: const [
+            Text('支持平台', style: AppText.section),
+            Spacer(),
+            Text('抖音已接入', style: AppText.label),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         Row(
           children: const [
-            Expanded(child: PlatformChip(name: '抖音', icon: Icons.music_note_rounded, active: true, badge: 'NEW')),
-            SizedBox(width: 9),
-            Expanded(child: PlatformChip(name: '快手', icon: Icons.videocam_rounded)),
-            SizedBox(width: 9),
-            Expanded(child: PlatformChip(name: '小红书', icon: Icons.bookmark_rounded)),
-            SizedBox(width: 9),
-            Expanded(child: PlatformChip(name: 'B 站', icon: Icons.live_tv_rounded)),
+            Expanded(
+              child: PlatformItem(
+                name: '抖音',
+                icon: Icons.music_note_rounded,
+                active: true,
+                badge: 'NEW',
+              ),
+            ),
+            Expanded(child: PlatformItem(name: '快手', icon: Icons.videocam_rounded)),
+            Expanded(child: PlatformItem(name: '小红书', icon: Icons.bookmark_rounded)),
+            Expanded(child: PlatformItem(name: 'B 站', icon: Icons.live_tv_rounded)),
           ],
         ),
       ],
@@ -288,45 +189,41 @@ class _ParseScreenState extends State<ParseScreen> with SingleTickerProviderStat
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          children: [
-            const Text('最近解析', style: TextStyle(
-              fontSize: 14.5,
-              fontWeight: FontWeight.w600,
-              color: AppColors.text,
-            )),
-            const Spacer(),
-            Text('查看全部', style: TextStyle(
-              fontSize: 11.5,
-              color: AppColors.cyan.withOpacity(0.85),
-            )),
+          children: const [
+            Text('最近解析', style: AppText.section),
+            Spacer(),
+            Text('查看全部', style: AppText.label),
           ],
         ),
         const SizedBox(height: 12),
-        GlassCard(
-          padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
-          child: Column(
+        AppCard(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
             children: [
               Container(
-                width: 58,
-                height: 58,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.035),
-                  border: Border.all(color: Colors.white.withOpacity(0.05)),
+                  color: AppColors.cardAlt,
+                  borderRadius: BorderRadius.circular(11),
                 ),
-                child: const Icon(Icons.movie_filter_rounded, color: AppColors.textFaint, size: 26),
+                child: const Icon(Icons.movie_outlined, size: 18, color: AppColors.faint),
               ),
-              const SizedBox(height: 14),
-              const Text('还没有解析记录', style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppColors.text,
-              )),
-              const SizedBox(height: 6),
-              const Text('粘贴一条抖音分享链接，试试第一解析', style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textFaint,
-              )),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text('还没有解析记录', style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.text,
+                    )),
+                    SizedBox(height: 3),
+                    Text('先粘贴一条链接试试', style: AppText.label),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -335,11 +232,9 @@ class _ParseScreenState extends State<ParseScreen> with SingleTickerProviderStat
   }
 }
 
-class _MiniAction extends StatelessWidget {
-  const _MiniAction({required this.icon, required this.label, required this.onTap});
+class _PasteButton extends StatelessWidget {
+  const _PasteButton({required this.onTap});
 
-  final IconData icon;
-  final String label;
   final VoidCallback onTap;
 
   @override
@@ -347,18 +242,19 @@ class _MiniAction extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(11),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          color: AppColors.cardAlt,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: AppColors.textDim),
-            const SizedBox(width: 5),
-            Text(label, style: const TextStyle(fontSize: 11.5, color: AppColors.textDim)),
+          children: const [
+            Icon(Icons.content_paste_rounded, size: 14, color: AppColors.dim),
+            SizedBox(width: 6),
+            Text('粘贴', style: TextStyle(fontSize: 12.5, color: AppColors.dim)),
           ],
         ),
       ),
@@ -366,69 +262,28 @@ class _MiniAction extends StatelessWidget {
   }
 }
 
-class _HaloBackground extends StatelessWidget {
-  const _HaloBackground({required this.animation});
-
-  final Animation<double> animation;
+/// 顶部单点光晕：径向渐变自然淡出，不铺满整屏，避免背景显脏
+class _TopGlow extends StatelessWidget {
+  const _TopGlow();
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (context, _) {
-        final t = animation.value;
-        return IgnorePointer(
-          child: Stack(
-            children: [
-              Positioned(
-                top: -140 - 24 * t,
-                left: -90,
-                child: _Glow(color: AppColors.accent.withOpacity(0.28), size: 330),
-              ),
-              Positioned(
-                top: -40 + 34 * t,
-                right: -120,
-                child: _Glow(color: AppColors.cyan.withOpacity(0.16), size: 310),
-              ),
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        AppColors.bg.withOpacity(0.55),
-                        AppColors.bg,
-                      ],
-                      stops: const [0.32, 0.72, 1],
-                    ),
-                  ),
-                ),
-              ),
-            ],
+    return Positioned(
+      top: -120,
+      left: -70,
+      child: IgnorePointer(
+        child: Container(
+          width: 280,
+          height: 280,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                AppColors.accent.withOpacity(0.16),
+                AppColors.accent.withOpacity(0),
+              ],
+            ),
           ),
-        );
-      },
-    );
-  }
-}
-
-class _Glow extends StatelessWidget {
-  const _Glow({required this.color, required this.size});
-
-  final Color color;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [color, color.withOpacity(0)],
         ),
       ),
     );

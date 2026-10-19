@@ -65,17 +65,17 @@ class _RootShellState extends State<RootShell> {
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(
-          margin: const EdgeInsets.fromLTRB(26, 0, 26, 12),
-          padding: const EdgeInsets.all(6),
+          margin: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+          padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: AppColors.surfaceAlt.withOpacity(0.94),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: Colors.white.withOpacity(0.06)),
+            color: AppColors.cardAlt,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.border),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.45),
-                blurRadius: 26,
-                offset: const Offset(0, 12),
+                color: Colors.black.withOpacity(0.5),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
@@ -117,36 +117,31 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = selected ? AppColors.accent : AppColors.faint;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? Colors.white.withOpacity(0.06) : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
+          color: selected ? AppColors.accent.withOpacity(0.10) : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              meta.icon,
-              size: 18,
-              color: selected ? AppColors.accent : AppColors.textFaint,
-            ),
-            if (selected) ...[
-              const SizedBox(width: 6),
-              Text(
-                meta.label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.text,
-                ),
+            Icon(meta.icon, size: 19, color: color),
+            const SizedBox(height: 3),
+            Text(
+              meta.label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                color: color,
               ),
-            ],
+            ),
           ],
         ),
       ),
