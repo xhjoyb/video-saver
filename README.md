@@ -62,8 +62,23 @@ GH_TOKEN=$(gh auth token --user xhjoyb) python3 tools/push_repo.py \
 ## 签名
 
 CI 首次运行用 `keytool` 生成 PKCS12 keystore（`keystore/release.jks`），
-通过 Actions Cache（key `videosaver-keystore-v1`）复用，并上传 `keystore-backup` artifact。
-待首次构建完成后，会将该 keystore 固化为仓库 Secret，避免 cache 失效导致签名变化。
+目前已把该 keystore 固化为仓库 Secret `ANDROID_KEYSTORE_B64`（alias `videosaver`），
+CI 优先从 Secret 还原，其次用 Actions Cache（key `videosaver-keystore-v1`），
+两者都没有时才现场生成。已实测跨构建签名一致：build-4 → build-6 覆盖安装成功，
+证书指纹均为 `763a3827`。
+
+## 已知问题与排查记录（踩过的坑）
+
+| 现象 | 原因 | 处理 |
+|---|---|---|
+| `Keystore file '.../app/keystore/release.jks' not found` | module 内 `file()` 按 `app/` 解析 | 改用 `rootProject.file(ksPath)` |
+| 推送成功但分支没变化 | 更新 ref 用了单数 `/git/ref/`，404 被静默容忍 | 改 `/git/refs/`，并校验返回的 sha |
+| `pm install` 报 Android 13 SELinux 拒绝 | 直接装 `/sdcard` 路径 | 先 `cp` 到 `/data/local/tmp/` 再装 |
+| `am start` 报 `Failed transaction` | 未指定 user | 使用 `am start --user 0 -n ...` |
+| Release 没生成但步骤显示 success | runner 到 `api.github.com` 偶发 i/o timeout，且命令后面跟了 `\|\| true` | Publish 步骤加 5 次退避重试，并输出 warning |
+| Release 资产下载很慢/中断 | `release-assets.githubusercontent.com` 单连接限速 | 用 `tools/dl_asset.py` 8 线程 Range 下载 |
+
+构建耗时：首次约 5 分钟（含依赖下载），之后约 4 分钟（Gradle 缓存命中）。
 
 ## 解析链路（设计）
 
