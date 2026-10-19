@@ -1,0 +1,63 @@
+build	Build release APK	﻿2026-10-19T23:07:20.6089498Z ##[group]Run timeout -k 20 1500 flutter build apk --release --target-platform android-arm64 || {
+build	Build release APK	2026-10-19T23:07:20.6090666Z ^[[36;1mtimeout -k 20 1500 flutter build apk --release --target-platform android-arm64 || {^[[0m
+build	Build release APK	2026-10-19T23:07:20.6091813Z ^[[36;1m  echo "::error::flutter build apk 失败或超时";^[[0m
+build	Build release APK	2026-10-19T23:07:20.6092355Z ^[[36;1m  exit 1;^[[0m
+build	Build release APK	2026-10-19T23:07:20.6092731Z ^[[36;1m}^[[0m
+build	Build release APK	2026-10-19T23:07:20.6245982Z shell: /usr/bin/bash -e {0}
+build	Build release APK	2026-10-19T23:07:20.6246494Z env:
+build	Build release APK	2026-10-19T23:07:20.6247039Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+build	Build release APK	2026-10-19T23:07:20.6247935Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.20-1/x64
+build	Build release APK	2026-10-19T23:07:20.6248803Z   FLUTTER_ROOT: /opt/hostedtoolcache/flutter/stable-3.24.5-x64/flutter
+build	Build release APK	2026-10-19T23:07:20.6249479Z   PUB_CACHE: /home/runner/.pub-cache
+build	Build release APK	2026-10-19T23:07:20.6250129Z   KS_FILE: /home/runner/work/video-saver/video-saver/keystore/release.jks
+build	Build release APK	2026-10-19T23:07:20.6250790Z   KS_PASS: videosaver2025
+build	Build release APK	2026-10-19T23:07:20.6251584Z   KS_ALIAS: videosaver
+build	Build release APK	2026-10-19T23:07:20.6252009Z   KS_KEY_PASS: videosaver2025
+build	Build release APK	2026-10-19T23:07:20.6252751Z ##[endgroup]
+build	Build release APK	2026-10-19T23:07:21.3387466Z 
+build	Build release APK	2026-10-19T23:10:09.6567835Z Running Gradle task 'assembleRelease'...                        
+build	Build release APK	2026-10-19T23:10:09.6569578Z Warning: The plugin flutter_plugin_android_lifecycle requires Android SDK version 35 or higher.
+build	Build release APK	2026-10-19T23:10:09.6571901Z For more information about build configuration, see https://flutter.dev/to/review-gradle-config.
+build	Build release APK	2026-10-19T23:10:31.0273693Z Your project is configured to compile against Android SDK 34, but the following plugin(s) require to be compiled against a higher Android SDK version:
+build	Build release APK	2026-10-19T23:10:31.0312888Z - flutter_plugin_android_lifecycle compiles against Android SDK 35
+build	Build release APK	2026-10-19T23:10:31.0352689Z Fix this issue by compiling against the highest Android SDK version (they are backward compatible).
+build	Build release APK	2026-10-19T23:10:31.0392458Z Add the following to /home/runner/work/video-saver/video-saver/android/app/build.gradle:
+build	Build release APK	2026-10-19T23:10:31.0411974Z 
+build	Build release APK	2026-10-19T23:10:31.0430617Z     android {
+build	Build release APK	2026-10-19T23:10:31.0472714Z         compileSdk = 35
+build	Build release APK	2026-10-19T23:10:31.0512144Z         ...
+build	Build release APK	2026-10-19T23:10:31.0513058Z     }
+build	Build release APK	2026-10-19T23:10:31.0551860Z 
+build	Build release APK	2026-10-19T23:10:37.7218166Z Checking the license for package Android SDK Build-Tools 33.0.1 in /usr/local/lib/android/sdk/licenses
+build	Build release APK	2026-10-19T23:10:37.8215720Z License for package Android SDK Build-Tools 33.0.1 accepted.
+build	Build release APK	2026-10-19T23:10:37.8227305Z Preparing "Install Android SDK Build-Tools 33.0.1 v.33.0.1".
+build	Build release APK	2026-10-19T23:10:39.2213428Z "Install Android SDK Build-Tools 33.0.1 v.33.0.1" ready.
+build	Build release APK	2026-10-19T23:10:39.2219566Z Installing Android SDK Build-Tools 33.0.1 in /usr/local/lib/android/sdk/build-tools/33.0.1
+build	Build release APK	2026-10-19T23:10:39.2221117Z "Install Android SDK Build-Tools 33.0.1 v.33.0.1" complete.
+build	Build release APK	2026-10-19T23:10:39.7214628Z "Install Android SDK Build-Tools 33.0.1 v.33.0.1" finished.
+build	Build release APK	2026-10-19T23:12:08.9240710Z lib/dev/parse_probe_screen.dart:131:23: Error: The method 'WebCookieManager' isn't defined for the class '_ParseProbeScreenState'.
+build	Build release APK	2026-10-19T23:12:08.9293101Z  - '_ParseProbeScreenState' is from 'package:videosaver/dev/parse_probe_screen.dart' ('lib/dev/parse_probe_screen.dart').
+build	Build release APK	2026-10-19T23:12:08.9349540Z Try correcting the name to the name of an existing method, or defining a method named 'WebCookieManager'.
+build	Build release APK	2026-10-19T23:12:08.9392372Z       final manager = WebCookieManager(_web);
+build	Build release APK	2026-10-19T23:12:08.9402074Z                       ^^^^^^^^^^^^^^^^
+build	Build release APK	2026-10-19T23:12:15.7383078Z Target kernel_snapshot_program failed: Exception
+build	Build release APK	2026-10-19T23:12:15.7385969Z 
+build	Build release APK	2026-10-19T23:12:15.8245047Z 
+build	Build release APK	2026-10-19T23:12:15.8246209Z FAILURE: Build failed with an exception.
+build	Build release APK	2026-10-19T23:12:15.8247588Z 
+build	Build release APK	2026-10-19T23:12:15.8248338Z * What went wrong:
+build	Build release APK	2026-10-19T23:12:15.8249852Z Execution failed for task ':app:compileFlutterBuildRelease'.
+build	Build release APK	2026-10-19T23:12:15.8252048Z > Process 'command '/opt/hostedtoolcache/flutter/stable-3.24.5-x64/flutter/bin/flutter'' finished with non-zero exit value 1
+build	Build release APK	2026-10-19T23:12:15.8254140Z 
+build	Build release APK	2026-10-19T23:12:15.8254739Z * Try:
+build	Build release APK	2026-10-19T23:12:15.8256127Z > Run with --stacktrace option to get the stack trace.
+build	Build release APK	2026-10-19T23:12:15.8257487Z > Run with --info or --debug option to get more log output.
+build	Build release APK	2026-10-19T23:12:15.8259026Z > Run with --scan to get full insights.
+build	Build release APK	2026-10-19T23:12:15.8260190Z > Get more help at https://help.gradle.org.
+build	Build release APK	2026-10-19T23:12:15.8261595Z 
+build	Build release APK	2026-10-19T23:12:15.8262330Z BUILD FAILED in 4m 54s
+build	Build release APK	2026-10-19T23:12:16.3035001Z Running Gradle task 'assembleRelease'...                          294.9s
+build	Build release APK	2026-10-19T23:12:16.3086210Z Gradle task assembleRelease failed with exit code 1
+build	Build release APK	2026-10-19T23:12:16.3206253Z ##[error]flutter build apk 失败或超时
+build	Build release APK	2026-10-19T23:12:16.3228115Z ##[error]Process completed with exit code 1.
+DONE

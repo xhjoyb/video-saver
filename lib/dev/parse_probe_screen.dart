@@ -128,31 +128,21 @@ class _ParseProbeScreenState extends State<ParseProbeScreen> {
 
   Future<void> _readCookies() async {
     try {
-      final manager = WebCookieManager(_web);
-      final cookies = <String, String>{};
-      for (final url in const ['https://www.douyin.com', 'https://www.iesdouyin.com']) {
-        try {
-          final list = await manager.getCookies(Uri.parse(url));
-          for (final c in list) {
-            cookies[c.name] = c.value;
-          }
-        } catch (_) {}
+      final raw = await _web.runJavaScriptReturningResult('document.cookie');
+      var text = raw.toString();
+      if (text.startsWith('"') && text.endsWith('"')) {
+        text = jsonDecode(text) as String;
       }
-      final keep = <String, String>{};
-      for (final key in const [
-        'uifid',
-        'UIFID',
-        'ttwid',
-        'msToken',
-        '__ac_nonce',
-        's_v_web_id',
-        'odinzx',
-      ]) {
-        if (cookies.containsKey(key)) keep[key] = cookies[key]!;
+      final names = <String>[];
+      for (final part in text.split(';')) {
+        final kv = part.trim();
+        if (kv.isEmpty) continue;
+        names.add(kv.split('=').first.trim());
       }
-      _data['cookies'] = keep;
-      _data['cookieTotal'] = cookies.length;
-      _data['cookieNames'] = cookies.keys.take(30).toList();
+      _data['docCookieLen'] = text.length;
+      _data['cookieNames'] = names;
+      _data['hasUifidLike'] =
+          names.where((n) => n.toLowerCase().contains('uifid')).toList();
       await _dump();
     } catch (e) {
       _data['cookieError'] = e.toString();

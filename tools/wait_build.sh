@@ -12,7 +12,7 @@ for i in $(seq 1 60); do
   sleep 15
 done
 
-TAG=$(gh api repos/xhjoyb/video-saver/releases --jq '.[0].tag_name' 2>/dev/null)
+TAG=$(gh api "repos/xhjoyb/video-saver/releases?per_page=1" --jq '.[0] | .tag_name' 2>/dev/null)
 echo "TAG=$TAG" >> release/ci.log
 python3 tools/dl_asset.py --owner xhjoyb --repo video-saver --tag "$TAG" \
   --name app-release.apk --out release/probe4.apk --threads 12 >> release/ci.log 2>&1
