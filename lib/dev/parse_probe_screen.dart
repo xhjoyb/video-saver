@@ -8,51 +8,51 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_theme.dart';
 
-/// 开发者探针：用真实 WebView 打开抖音分享页，探查能否拿到视频地址/接口数据。
-/// 仅用于验证解析链路，不对外暴露。
+/// 开发者探针：两阶段验证 WebView 能否加载抖音分享页，并抓 cookie / 视频地址。
+/// 结果写 /sdcard/Android/data/<pkg>/files/probe_result.json
 class ParseProbeScreen extends StatefulWidget {
-  const ParseProbeScreen({
-    super.key,
-    this.initialUrl = 'https://www.iesdouyin.com/share/video/7695215729926784320/',
-  });
-
-  final String initialUrl;
+  const ParseProbeScreen({super.key});
 
   @override
   State<ParseProbeScreen> createState() => _ParseProbeScreenState();
 }
 
 class _ParseProbeScreenState extends State<ParseProbeScreen> {
-  late final WebViewController _web;
-  String _status = '准备中';
-  Map<String, dynamic> _result = const {};
+  static const String targetUrl =
+      'https://www.iesdouyin.com/share/video/7695215729926784320/';
+  static const String baselineUrl = 'https://example.com/';
+  static const String probeUa =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-  /// 页面里能拿到的全部线索：video 元素、资源请求、_ROUTER_DATA
-  static const String _probeJs = r'''
+  late final WebViewController _web;
+  String _stage = 'baseline';
+
+  final Map<String, dynamic> _data = <String, dynamic>{
+    'stage': 'init',
+    'baseline': <String, dynamic>{},
+    'douyin': <String, dynamic>{},
+    'cookies': <String, dynamic>{},
+  };
+
+  static const String _js = r'''
 (function () {
   try {
     var v = document.querySelector('video');
     var res = performance.getEntriesByType('resource')
       .map(function (e) { return e.name; })
-      .filter(function (n) {
-        return n.indexOf('aweme') >= 0 || n.indexOf('douyin') >= 0 || n.indexOf('video') >= 0;
-      })
-      .slice(0, 60);
-    var router = '';
-    try {
-      if (window._ROUTER_DATA) router = JSON.stringify(window._ROUTER_DATA).slice(0, 6000);
-    } catch (e) { router = 'router-stringify-fail'; }
+      .filter(function (n) { return n.indexOf('aweme') >= 0 || n.indexOf('douyin') >= 0; })
+      .slice(0, 40);
     return JSON.stringify({
-      url: location.href,
       title: document.title,
+      href: location.href,
+      docCookieLen: (document.cookie || '').length,
       videoSrc: v ? (v.currentSrc || v.src || '') : '',
       sources: Array.prototype.map.call(document.querySelectorAll('video source'), function (s) { return s.src; }),
       resources: res,
-      router: router
+      router: window._ROUTER_DATA ? JSON.stringify(window._ROUTER_DATA).slice(0, 2000) : ''
     });
-  } catch (e) {
-    return JSON.stringify({ error: String(e) });
-  }
+  } catch (e) { return JSON.stringify({ jsError: String(e) }); }
 })()
 ''';
 
@@ -61,133 +61,156 @@ class _ParseProbeScreenState extends State<ParseProbeScreen> {
     super.initState();
     _web = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setUserAgent(probeUa)
       ..setBackgroundColor(Colors.black)
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (url) {
-            if (mounted) setState(() => _status = '加载中… $url');
+            _merge(_stage, {'startedUrl': url});
           },
           onPageFinished: (url) async {
-            if (!mounted) return;
-            setState(() => _status = '页面已加载，立即探测…');
+            _merge(_stage, {'ok': true, 'finishedUrl': url});
+            if (_stage == 'baseline') {
+              _stage = 'douyin';
+              _data['stage'] = 'douyin_loading';
+              await _dump();
+              await _web.loadRequest(Uri.parse(targetUrl));
+              return;
+            }
             await _probe();
-            await Future.delayed(const Duration(milliseconds: 800));
-            if (!mounted) return;
+            await Future.delayed(const Duration(milliseconds: 1200));
             await _probe();
+            await _readCookies();
+            _data['stage'] = 'done';
+            await _dump();
           },
-          onWebResourceError: (e) {
-            if (mounted) setState(() => _status = '加载失败：${e.description}');
+          onWebResourceError: (e) async {
+            _merge(_stage, {
+              'ok': false,
+              'errorCode': e.errorCode,
+              'errorDesc': e.description,
+              'isForMainFrame': e.isForMainFrame,
+            });
+            if (_stage == 'baseline') {
+              _stage = 'douyin';
+              _data['stage'] = 'douyin_loading';
+              await _dump();
+              await _web.loadRequest(Uri.parse(targetUrl));
+            }
           },
         ),
       );
-    _load();
-    _dump('{"stage":"started"}');
+    _web.loadRequest(Uri.parse(baselineUrl));
+    _dump();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _result = const {};
-      _status = '开始加载 ${widget.initialUrl}';
-    });
-    try {
-      await _web.loadRequest(Uri.parse(widget.initialUrl));
-    } catch (e) {
-      if (mounted) setState(() => _status = '加载异常：$e');
-    }
+  void _merge(String stage, Map<String, dynamic> patch) {
+    final current = Map<String, dynamic>.from(_data[stage] as Map);
+    current.addAll(patch);
+    _data[stage] = current;
+    _dump();
+    if (mounted) setState(() {});
   }
 
   Future<void> _probe() async {
     try {
-      final raw = await _web.runJavaScriptReturningResult(_probeJs);
+      final raw = await _web.runJavaScriptReturningResult(_js);
       var text = raw.toString();
       if (text.startsWith('"') && text.endsWith('"')) {
         text = jsonDecode(text) as String;
       }
       final decoded = jsonDecode(text) as Map<String, dynamic>;
-      await _dump(text);
-      if (!mounted) return;
-      setState(() {
-        _result = decoded;
-        final now = DateTime.now();
-        _status =
-            '探测完成 ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
-      });
+      _merge('douyin', decoded);
     } catch (e) {
-      if (mounted) setState(() => _status = '探测失败：$e');
+      _merge('douyin', {'probeError': e.toString()});
     }
   }
 
-  Future<void> _dump(String text) async {
-    // 结果同时写文件与 logcat，便于无 UI 时取证
+  Future<void> _readCookies() async {
+    try {
+      final manager = WebCookieManager(_web);
+      final cookies = <String, String>{};
+      for (final url in const ['https://www.douyin.com', 'https://www.iesdouyin.com']) {
+        try {
+          final list = await manager.getCookies(Uri.parse(url));
+          for (final c in list) {
+            cookies[c.name] = c.value;
+          }
+        } catch (_) {}
+      }
+      final keep = <String, String>{};
+      for (final key in const [
+        'uifid',
+        'UIFID',
+        'ttwid',
+        'msToken',
+        '__ac_nonce',
+        's_v_web_id',
+        'odinzx',
+      ]) {
+        if (cookies.containsKey(key)) keep[key] = cookies[key]!;
+      }
+      _data['cookies'] = keep;
+      _data['cookieTotal'] = cookies.length;
+      _data['cookieNames'] = cookies.keys.take(30).toList();
+      await _dump();
+    } catch (e) {
+      _data['cookieError'] = e.toString();
+      await _dump();
+    }
+  }
+
+  Future<void> _dump() async {
     try {
       final dir = await getExternalStorageDirectory();
       if (dir != null) {
         await dir.create(recursive: true);
-        await File('${dir.path}/probe_result.json').writeAsString(text);
+        await File('${dir.path}/probe_result.json')
+            .writeAsString(jsonEncode(_data));
       }
     } catch (_) {}
-    // ignore: avoid_print
-    print('PROBE_RESULT $text');
   }
 
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
-    final videoSrc = (_result['videoSrc'] as String?) ?? '';
-    final sources = (_result['sources'] as List?)?.cast<String>() ?? const <String>[];
-    final resources = (_result['resources'] as List?)?.cast<String>() ?? const <String>[];
-    final router = (_result['router'] as String?) ?? '';
-
     return Scaffold(
       backgroundColor: p.bgBottom,
       appBar: AppBar(
         title: const Text('解析探针'),
         actions: [
-          IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded)),
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _stage = 'baseline';
+                _data['stage'] = 'restart';
+                _data['baseline'] = <String, dynamic>{};
+                _data['douyin'] = <String, dynamic>{};
+                _data['cookies'] = <String, dynamic>{};
+              });
+              _web.loadRequest(Uri.parse(baselineUrl));
+            },
+            icon: const Icon(Icons.refresh_rounded),
+          ),
         ],
       ),
       body: Column(
         children: [
-          SizedBox(
-            height: 320,
-            child: WebViewWidget(controller: _web),
-          ),
+          SizedBox(height: 260, child: WebViewWidget(controller: _web)),
           Container(height: 1, color: p.border),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
+              padding: const EdgeInsets.all(12),
               children: [
-                Text(_status, style: AppText.body(context)),
+                Text('stage: ${_data['stage']}', style: AppText.body(context)),
                 const SizedBox(height: 8),
-                _kv(context, 'videoSrc', videoSrc.isEmpty ? '(空)' : videoSrc),
-                if (sources.isNotEmpty) _kv(context, 'sources', sources.join('\n')),
-                if (resources.isNotEmpty)
-                  _kv(context, 'resources', resources.take(20).join('\n')),
-                if (router.isNotEmpty) _kv(context, 'router', router),
+                SelectableText(
+                  const JsonEncoder.withIndent('  ').convert(_data),
+                  style: TextStyle(fontSize: 11, height: 1.4, color: p.dim),
+                ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _kv(BuildContext context, String key, String value) {
-    final p = context.palette;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: p.cardAlt,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: p.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(key, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: p.accent)),
-          const SizedBox(height: 4),
-          SelectableText(value, style: TextStyle(fontSize: 11.5, height: 1.45, color: p.dim)),
         ],
       ),
     );
