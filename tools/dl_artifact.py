@@ -40,6 +40,7 @@ def main():
     ap.add_argument("--name", required=True)
     ap.add_argument("--ext", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--into", default="", help="设置后解压整个 artifact 到该目录，并忽略 --ext")
     ap.add_argument("--threads", type=int, default=8)
     args = ap.parse_args()
 
@@ -110,7 +111,14 @@ def main():
 
     zf = zipfile.ZipFile(tmp)
     names = zf.namelist()
-    print("entries:", names)
+    print("entries:", names[:20], "..." if len(names) > 20 else "")
+
+    if args.into:
+        os.makedirs(args.into, exist_ok=True)
+        zf.extractall(args.into)
+        print(f"OK: extracted {len(names)} entries to {args.into}")
+        return 0
+
     target = next((n for n in names if n.endswith(args.ext)), None)
     if not target:
         print(f"zip 中找不到 {args.ext}")

@@ -1,0 +1,57 @@
+name: Flutter Bootstrap
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scaffold:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Scaffold project
+        run: |
+          mkdir -p /tmp/scaffold
+          cd /tmp/scaffold
+          flutter create \
+            --platforms=android \
+            --org com.xhjoyb \
+            --project-name videosaver \
+            --android-language kotlin \
+            --description "视频嗅探 · 多平台视频解析下载" \
+            app
+          echo '--- android tree ---'
+          find app/android -maxdepth 3 -type f | sort | head -40
+          echo '--- gradle wrapper ---'
+          cat app/android/gradle/wrapper/gradle-wrapper.properties
+          echo '--- app gradle ---'
+          sed -n '1,80p' app/android/app/build.gradle.kts 2>/dev/null || sed -n '1,80p' app/android/app/build.gradle
+
+      - name: Upload scaffold
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-scaffold
+          path: /tmp/scaffold/app
+          if-no-files-found: error
+          retention-days: 7
