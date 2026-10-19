@@ -1,8 +1,4 @@
-run 39339448299: completed / failure
-  branch=main sha=850e683e event=push
-  url=https://github.com/xhjoyb/video-saver/actions/runs/39339448299
-  created=2026-10-19T23:06:17Z updated=2026-10-19T23:12:21Z
-TAG=flutter-9
-asset size = 21898845 bytes, url host = release-assets.githubusercontent.com
-完成: release/probe4.apk 21898845 bytes (期望 21898845)
-DONE=0
+run 39340281488: in_progress / None
+  branch=main sha=2e461d2c event=push
+  url=https://github.com/xhjoyb/video-saver/actions/runs/39340281488
+  created=2026-10-19T23:14:08Z updated=2026-10-19T23:14:12Z
