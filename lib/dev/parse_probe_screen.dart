@@ -32,7 +32,6 @@ class _ParseProbeScreenState extends State<ParseProbeScreen> {
     'stage': 'init',
     'baseline': <String, dynamic>{},
     'douyin': <String, dynamic>{},
-    'cookies': <String, dynamic>{},
   };
 
   static const String _js = r'''
@@ -211,7 +210,6 @@ class _ParseProbeScreenState extends State<ParseProbeScreen> {
                 _data['stage'] = 'restart';
                 _data['baseline'] = <String, dynamic>{};
                 _data['douyin'] = <String, dynamic>{};
-                _data['cookies'] = <String, dynamic>{};
               });
               _web.loadRequest(Uri.parse(baselineUrl));
             },
