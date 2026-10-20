@@ -67,8 +67,9 @@ class ParseResult {
 
   String get fileName {
     final safe = title.replaceAll(RegExp(r'[\\/:*?"<>|\s]+'), '_');
+    // 空标题只保留平台前缀，避免拼成 douyin_<id>_<id>.mp4
     final base = safe.isEmpty
-        ? 'douyin_$awemeId'
+        ? 'douyin'
         : (safe.length > 40 ? safe.substring(0, 40) : safe);
     return '${base}_$awemeId.mp4';
   }
