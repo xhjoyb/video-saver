@@ -6,7 +6,7 @@
 - 技术栈：Flutter 3.24.5 + Material 3，Kotlin 原生壳（MethodChannel）
 - Android：minSdk 26 / targetSdk 34，仅 arm64 出包
 - 构建：GitHub Actions 云端构建 → Release
-- 当前基线：**`flutter-31`**（commit `8ed10b4`，App 内版本 `0.3.0 (build 3)`），语义 tag `v0.3.0`
+- 当前基线：**`flutter-33`**（commit `76f848f1`，App 内版本 `0.3.0 (build 3)`），语义 tag `v0.3.0`
 - 仓库：**public** — https://github.com/xhjoyb/video-saver
 
 ## 当前能力
@@ -79,6 +79,20 @@
 5. 移动端 UA 会触发 `snssdk://` 唤起 App，WebView 会整页 `ERR_UNKNOWN_URL_SCHEME`——必须 PC UA + 拦截非 http(s) 导航；
 6. **冷启动首次解析可能被 Argus 拦**（cookie 未就绪，返回 "Blocked by …" 纯文本），已改为自动重试 3 次。
 
+## 品牌视觉
+
+| 项 | 值 / 位置 |
+|---|---|
+| 青绿主色 | `#19E8BE`；亮 `#6BFFDD`；深 `#00A98A` |
+| 墨绿底 | 启动页 `#05100E`、图标底 `#061412` |
+| 自适应图标 | `drawable/ic_launcher_foreground.xml` + `ic_launcher_background.xml`（vector 渐变） |
+| 位图兜底 | `tools/gen_icons.py` 生成 48–192px PNG（纯标准库，不依赖 Pillow） |
+| Android 12+ 系统启动图 | `values-v31/styles.xml` + `drawable/ic_splash_anim.xml`（旋转弧 AnimatedVector） |
+| App 内开屏动画 | `lib/app/splash_overlay.dart`：光晕呼吸 / 46 颗上浮光点 / 三层扩散环 / 描边生长 / 三角弹性 / 字距收拢 / 底部扫光，1.9s，点击可跳过 |
+
+> 注：Android 12+ 的系统 SplashScreen 只播约 1s（`windowSplashScreenAnimationDuration`），随后由 Flutter 侧动画接力；两侧背景色一致，不会闪白。
+> App 内强调色（`AppPalette.accent`）目前仍为珊瑚红 `#FF3B5C`，与图标/开屏的青绿不同——如需统一，改 `lib/theme/app_palette.dart` 的两处 `accent` / `accent2` 即可。
+
 ## 构建与交付
 
 push 到 `main` → Actions 构建 → Release `flutter-<run_number>`（只保留最新一版）。
@@ -139,6 +153,8 @@ App 内开发者页面：**设置 → 开发者 → 解析探针**，把 WebView
 | `flutter-29` | 首页文案去平台化（多平台表述） |
 | `flutter-30` | 文档更新（记录 flutter-29 状态与可选目标清单） |
 | `flutter-31` | 应用图标 + 深色启动页、解析预热、清晰度选择、历史搜索与重新解析 |
+| `flutter-32` | （空）文档提交触发的一次重复构建，已取消，无产物 |
+| `flutter-33` | 青绿主题图标（adaptive vector + PNG 兜底）、自绘开屏动画、Android 12+ SplashScreen AVD |
 
 ---
 
