@@ -33,11 +33,13 @@ class DownloadService {
     String fileName, {
     void Function(int received, int total)? onProgress,
     String referer = 'https://www.douyin.com/',
+    String? userAgent,
   }) async {
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
     try {
       final request = await client.getUrl(Uri.parse(url));
-      request.headers.set(HttpHeaders.userAgentHeader, _ua);
+      // 平台差异：B 站 CDN 只认 PC 浏览器 UA，手机 UA 即使带 Referer 也 403
+      request.headers.set(HttpHeaders.userAgentHeader, userAgent ?? _ua);
       request.headers.set(HttpHeaders.refererHeader, referer);
       request.headers.set(HttpHeaders.acceptHeader, '*/*');
       final response = await request.close();

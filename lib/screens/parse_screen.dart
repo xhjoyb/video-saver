@@ -6,6 +6,7 @@ import '../app/app_events.dart';
 import '../download/download_service.dart';
 import '../history/history_item.dart';
 import '../history/history_store.dart';
+import '../parser/bilibili_parser.dart';
 import '../parser/douyin_parser.dart';
 import '../parser/parse_controller.dart';
 import '../parser/parse_result.dart';
@@ -201,6 +202,9 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
         referer: result.platform == 'bilibili'
             ? 'https://www.bilibili.com/'
             : 'https://www.douyin.com/',
+        userAgent: result.platform == 'bilibili'
+            ? BilibiliParser.userAgent
+            : null,
         onProgress: (received, total) {
           if (!mounted || total <= 0) return;
           final p = received / total;
