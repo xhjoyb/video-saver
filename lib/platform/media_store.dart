@@ -23,6 +23,20 @@ class MediaStore {
     }
   }
 
+  static Future<String?> saveImage(File file, String displayName) async {
+    try {
+      return await _channel.invokeMethod<String>('saveImage', {
+        'path': file.path,
+        'name': displayName,
+        'mime': 'image/jpeg',
+      });
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
   static Future<bool> isSupported() async {
     try {
       final ok = await _channel.invokeMethod<bool>('isSupported');

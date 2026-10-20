@@ -122,8 +122,8 @@ class ParseController extends ChangeNotifier {
         return;
       }
       final parsed = ParseResult.fromDouyin(data);
-      if (parsed.videoUrls.isEmpty) {
-        _fail(parsed.imageUrls.isNotEmpty ? '这是图集，暂不支持下载' : '没有拿到视频地址');
+      if (parsed.videoUrls.isEmpty && parsed.imageUrls.isEmpty) {
+        _fail('没有拿到视频或图片地址');
         return;
       }
       _result = parsed;

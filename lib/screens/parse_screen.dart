@@ -138,6 +138,43 @@ class _ParseScreenState extends State<ParseScreen> {
     }
   }
 
+  Future<void> _downloadImages() async {
+    final result = _parse.result;
+    if (result == null || result.imageUrls.isEmpty) return;
+    setState(() {
+      _downloading = true;
+      _progress = 0;
+    });
+    var done = 0;
+    try {
+      for (var i = 0; i < result.imageUrls.length; i++) {
+        final url = result.imageUrls[i];
+        final name = '${result.awemeId}_${(i + 1).toString().padLeft(2, '0')}.jpg';
+        final file = await DownloadService.download(url, name);
+        final saved = await MediaStore.saveImage(file, name);
+        if (saved != null) {
+          try {
+            await file.delete();
+          } catch (_) {}
+        }
+        done++;
+        if (mounted) {
+          setState(() => _progress = done / result.imageUrls.length);
+        }
+      }
+      if (!mounted) return;
+      await HistoryStore.instance.markDownloaded(
+        result.awemeId,
+        'Pictures/VideoSaver（${result.imageUrls.length} 张）',
+      );
+      _toast('已保存 ${result.imageUrls.length} 张图片到相册');
+    } catch (e) {
+      if (mounted) _toast('图片下载失败：$e');
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
@@ -300,7 +337,10 @@ class _ParseScreenState extends State<ParseScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    Text(result.durationText, style: AppText.label(context)),
+                    Text(
+                        result.isVideo ? result.durationText : '图集 · ${result.imageUrls.length} 张',
+                        style: AppText.label(context),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -316,13 +356,21 @@ class _ParseScreenState extends State<ParseScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text('下载中 ${(_progress * 100).toStringAsFixed(0)}%', style: AppText.label(context)),
-                ] else
+                ] else if (result.isVideo)
                   PrimaryButton(
                     label: '下载无水印视频',
                     icon: Icons.download_rounded,
                     height: 42,
                     expand: true,
                     onPressed: _download,
+                  )
+                else
+                  PrimaryButton(
+                    label: '保存全部图片（${result.imageUrls.length}）',
+                    icon: Icons.photo_library_rounded,
+                    height: 42,
+                    expand: true,
+                    onPressed: _downloadImages,
                   ),
               ],
             ),
