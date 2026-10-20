@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dev/parse_probe_screen.dart';
+import 'history/history_store.dart';
 import 'screens/history_screen.dart';
 import 'screens/parse_screen.dart';
 import 'screens/settings_screen.dart';
@@ -15,6 +16,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   final settings = AppSettings(prefs);
+  await HistoryStore.instance.load();
   runApp(VideoSaverApp(settings: settings));
 }
 

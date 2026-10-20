@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../history/history_item.dart';
+import '../history/history_store.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_card.dart';
@@ -9,59 +12,234 @@ class HistoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: HistoryStore.instance,
+      builder: (context, _) {
+        final items = HistoryStore.instance.items;
+        return SafeArea(
+          bottom: false,
+          child: ListView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 120),
+            children: [
+              Row(
+                children: [
+                  Text('解析记录', style: AppText.title(context)),
+                  const Spacer(),
+                  if (items.isNotEmpty)
+                    GestureDetector(
+                      onTap: () => _confirmClear(context),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                        child: Text('清空', style: AppText.label(context)),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text('解析过的视频会保存在这里', style: AppText.label(context)),
+              const SizedBox(height: 20),
+              if (items.isEmpty)
+                _buildEmpty(context)
+              else
+                ...items.map((item) => _HistoryTile(item: item)),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(child: _StatCard(label: '已解析', value: '${HistoryStore.instance.total}')),
+                  const SizedBox(width: 10),
+                  Expanded(child: _StatCard(label: '已下载', value: '${HistoryStore.instance.downloadedCount}')),
+                  const SizedBox(width: 10),
+                  const Expanded(child: _StatCard(label: '平台', value: '抖音')),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmpty(BuildContext context) {
     final p = context.palette;
-    return SafeArea(
-      bottom: false,
-      child: ListView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 120),
+    return AppCard(
+      padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
+      child: Column(
         children: [
-          Text('解析记录', style: AppText.title(context)),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: p.cardAlt,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(Icons.history_rounded, size: 22, color: p.faint),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            '暂无记录',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: p.text),
+          ),
           const SizedBox(height: 6),
-          Text('解析过的视频会保存在这里', style: AppText.label(context)),
-          const SizedBox(height: 24),
-          AppCard(
-            padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
-            child: Column(
+          Text(
+            '完成第一次解析后，这里会出现视频封面与下载状态',
+            textAlign: TextAlign.center,
+            style: AppText.label(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmClear(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('清空解析记录？'),
+        content: const Text('只会删除记录，不会删除已保存到相册的视频。'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('清空')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await HistoryStore.instance.clear();
+    }
+  }
+}
+
+class _HistoryTile extends StatelessWidget {
+  const _HistoryTile({required this.item});
+
+  final HistoryItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AppCard(
+        padding: const EdgeInsets.all(10),
+        radius: 16,
+        onTap: () => _showActions(context),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: 64,
+                height: 64,
+                child: item.coverUrl.isEmpty
+                    ? Container(color: p.cardAlt)
+                    : Image.network(
+                        item.coverUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: p.cardAlt,
+                          child: Icon(Icons.movie_outlined, size: 22, color: p.faint),
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.displayTitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13.5, height: 1.35, fontWeight: FontWeight.w600, color: p.text),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    [
+                      if (item.author.isNotEmpty) '@${item.author}',
+                      if (item.durationText.isNotEmpty) item.durationText,
+                      item.timeText,
+                    ].join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.label(context),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Container(
-                  width: 52,
-                  height: 52,
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
-                    color: p.cardAlt,
-                    borderRadius: BorderRadius.circular(16),
+                    color: item.downloaded ? p.success.withOpacity(0.14) : p.cardAlt,
+                    borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Icon(Icons.history_rounded, size: 22, color: p.faint),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  '暂无记录',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: p.text,
+                  child: Text(
+                    item.downloaded ? '已下载' : '已解析',
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w600,
+                      color: item.downloaded ? p.success : p.faint,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  '完成第一次解析后，这里会出现视频封面与下载入口',
-                  textAlign: TextAlign.center,
-                  style: AppText.label(context),
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: () => HistoryStore.instance.remove(item.awemeId),
+                  child: Icon(Icons.delete_outline_rounded, size: 17, color: p.faint),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(child: _StatCard(label: '已解析', value: '0')),
-              const SizedBox(width: 10),
-              Expanded(child: _StatCard(label: '已下载', value: '0')),
-              const SizedBox(width: 10),
-              Expanded(child: _StatCard(label: '占用空间', value: '0 MB')),
-            ],
-          ),
-        ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showActions(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: context.palette.cardAlt,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.link_rounded),
+              title: const Text('复制视频直链'),
+              onTap: () async {
+                await Clipboard.setData(ClipboardData(text: item.videoUrl));
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('直链已复制（有时效，尽快使用）')),
+                  );
+                }
+              },
+            ),
+            if (item.downloaded)
+              ListTile(
+                leading: const Icon(Icons.folder_rounded),
+                title: const Text('查看保存位置'),
+                subtitle: Text(item.filePath ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
+                onTap: () => Navigator.pop(ctx),
+              ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded),
+              title: const Text('删除这条记录'),
+              onTap: () {
+                Navigator.pop(ctx);
+                HistoryStore.instance.remove(item.awemeId);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

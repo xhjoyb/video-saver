@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../download/download_service.dart';
+import '../history/history_item.dart';
+import '../history/history_store.dart';
 import '../parser/parse_controller.dart';
 import '../parser/parse_result.dart';
 import '../platform/media_store.dart';
@@ -24,6 +26,7 @@ class _ParseScreenState extends State<ParseScreen> {
   final ParseController _parse = ParseController();
   bool _downloading = false;
   double _progress = 0;
+  String? _lastRecordedId;
 
   @override
   void initState() {
@@ -37,6 +40,24 @@ class _ParseScreenState extends State<ParseScreen> {
     final error = _parse.error;
     if (error != null && _parse.stage == ParseStage.error) {
       _toast(error);
+    }
+    final result = _parse.result;
+    if (result != null &&
+        _parse.stage == ParseStage.done &&
+        _lastRecordedId != result.awemeId) {
+      _lastRecordedId = result.awemeId;
+      HistoryStore.instance.add(
+        HistoryItem(
+          awemeId: result.awemeId,
+          platform: result.platform,
+          title: result.title,
+          author: result.author,
+          coverUrl: result.coverUrl,
+          videoUrl: result.videoUrls.first,
+          durationMs: result.durationMs,
+          savedAt: DateTime.now(),
+        ),
+      );
     }
   }
 
@@ -99,6 +120,10 @@ class _ParseScreenState extends State<ParseScreen> {
       final saved = await MediaStore.saveVideo(file, result.fileName);
       if (!mounted) return;
       if (saved != null) {
+        await HistoryStore.instance.markDownloaded(
+          result.awemeId,
+          'Movies/VideoSaver/${result.fileName}',
+        );
         _toast('已保存到相册：Movies/VideoSaver');
         try {
           await file.delete();
