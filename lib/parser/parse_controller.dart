@@ -18,6 +18,14 @@ class ParseController extends ChangeNotifier {
       ..setBackgroundColor(Colors.black)
       ..setNavigationDelegate(
         NavigationDelegate(
+          onNavigationRequest: (request) {
+            // 阻止 snssdk:// 等自定义 scheme 唤起，避免整页 ERR_UNKNOWN_URL_SCHEME
+            final url = request.url;
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+              return NavigationDecision.prevent;
+            }
+            return NavigationDecision.navigate;
+          },
           onPageFinished: (url) {
             if (_stage != ParseStage.loading) return;
             _scheduleProbe();
@@ -73,7 +81,10 @@ class ParseController extends ChangeNotifier {
     });
 
     try {
-      await web.loadRequest(Uri.parse('https://www.douyin.com/video/$id'));
+      // 与探针一致：走分享页（会自动跳到 www.douyin.com/video/{id}）
+      await web.loadRequest(
+        Uri.parse('https://www.iesdouyin.com/share/video/$id/'),
+      );
     } catch (e) {
       _fail('页面加载失败：$e');
     }
