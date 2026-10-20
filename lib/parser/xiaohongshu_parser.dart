@@ -20,7 +20,7 @@ class XiaohongshuParser {
   static const String referer = 'https://www.xiaohongshu.com/';
 
   static final RegExp _linkRe =
-      RegExp(r'https?://xhslink\.(?:cn|com)/[A-Za-z0-9]+');
+      RegExp(r'https?://xhslink\.(?:cn|com)/[A-Za-z0-9]+(?:/[A-Za-z0-9]+)*');
   static final RegExp _urlRe = RegExp(r'https?://[^\s\u4e00-\u9fa5]+');
   static final RegExp _noteIdRe =
       RegExp(r'/(?:explore|discovery/item)/([0-9a-f]{24})');
