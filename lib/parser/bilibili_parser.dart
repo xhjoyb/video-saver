@@ -20,9 +20,24 @@ class BilibiliParser {
   static const String referer = 'https://www.bilibili.com/';
 
   static final RegExp _bvidRe = RegExp(r'BV[0-9A-Za-z]{10}');
-  static final RegExp _urlRe = RegExp(r'https?://[^\s]+');
+  static final RegExp _urlRe = RegExp(r'https?://[^\s\u4e00-\u9fa5]+');
+  static final RegExp _b23Re = RegExp(r'https?://b23\.tv/[A-Za-z0-9]+');
 
-  /// wbi 混淆表（公开常量，用于打乱 img_key + sub_key）
+  /// 从分享文本里取出可用的 URL：
+  /// 抖音/B 站分享文本常把中文、全角标点紧贴在 URL 后面，必须切干净
+  static String? extractShareUrl(String text) {
+    final short = _b23Re.firstMatch(text)?.group(0);
+    if (short != null) return short;
+
+    var url = _urlRe.firstMatch(text)?.group(0);
+    if (url == null) return null;
+    url = url.replaceAll(
+      RegExp(r'''[)\]}>.,;:!?"'，。；：！？、）】」』]+$'''),
+      '',
+    );
+    return url;
+  }
+
   static const List<int> _mixinTab = [
     46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35,
     27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13,
@@ -48,11 +63,35 @@ class BilibiliParser {
     final direct = extractBvid(input);
     if (direct != null) return direct;
 
-    final url = _urlRe.firstMatch(input.trim())?.group(0);
+    final url = extractShareUrl(input);
     if (url == null) return null;
+
     final location = await _followRedirects(url);
-    if (location == null) return null;
-    return extractBvid(location);
+    if (location != null) {
+      final bvid = extractBvid(location);
+      if (bvid != null) return bvid;
+    }
+
+    // 兜底：个别短链不返回 302，而是在 HTML 里放跳转链接
+    final html = await _getText(url);
+    if (html == null) return null;
+    return extractBvid(html);
+  }
+
+  static Future<String?> _getText(String url) async {
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 12);
+    try {
+      final request = await client.getUrl(Uri.parse(url));
+      request.headers.set(HttpHeaders.userAgentHeader, userAgent);
+      request.headers.set(HttpHeaders.refererHeader, referer);
+      final response = await request.close();
+      final body = await response.transform(utf8.decoder).join();
+      return response.statusCode == 200 ? body : null;
+    } catch (_) {
+      return null;
+    } finally {
+      client.close(force: true);
+    }
   }
 
   static Future<String?> _followRedirects(String url) async {

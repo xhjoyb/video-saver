@@ -31,6 +31,28 @@ void main() {
         isFalse,
       );
     });
+
+    test('分享文本里的 b23 短链能精确切出', () {
+      const text = '【初音未来4.0-QQ动态主题（芙兰）"谢谢你，找到了我。"-哔哩哔哩】 '
+          'https://b23.tv/pRhnnRk';
+      expect(BilibiliParser.extractShareUrl(text), 'https://b23.tv/pRhnnRk');
+    });
+
+    test('短链后紧跟中文也不会被吞进 URL', () {
+      expect(
+        BilibiliParser.extractShareUrl('看这个 https://b23.tv/pRhnnRk复制此链接'),
+        'https://b23.tv/pRhnnRk',
+      );
+    });
+
+    test('长链尾部的全角标点会被裁掉', () {
+      expect(
+        BilibiliParser.extractShareUrl(
+          '视频 https://www.bilibili.com/video/BV18Tby67ErD?p=1，好看',
+        ),
+        'https://www.bilibili.com/video/BV18Tby67ErD?p=1',
+      );
+    });
   });
 
   group('wbi 签名', () {
