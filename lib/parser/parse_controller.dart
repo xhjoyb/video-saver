@@ -249,24 +249,20 @@ class ParseController extends ChangeNotifier {
     _stage = ParseStage.loading;
     notifyListeners();
 
-    final pageUrl = await XiaohongshuParser.resolvePageUrl(input);
-    if (pageUrl == null) {
+    // 不再用 Dart HttpClient 跟短链（xhslink 对非浏览器 TLS 指纹可能直接断连），
+    // 改为让 WebView 打开短链，由浏览器完成 302 跳转。
+    final shareUrl = XiaohongshuParser.extractShareUrl(input);
+    if (shareUrl == null) {
       _fail('没有识别到小红书笔记链接');
       return;
     }
-    final noteId = XiaohongshuParser.extractNoteId(pageUrl) ??
-        XiaohongshuParser.extractNoteId(input);
-    if (noteId == null) {
-      _fail('没有识别到小红书笔记 ID');
-      return;
-    }
 
-    _timeout = Timer(const Duration(seconds: 40), () {
+    _timeout = Timer(const Duration(seconds: 45), () {
       if (busy) _fail('解析超时，请检查网络后重试');
     });
 
     try {
-      await web.loadRequest(Uri.parse(pageUrl));
+      await web.loadRequest(Uri.parse(shareUrl));
     } catch (e) {
       _fail('页面加载失败：$e');
       return;
@@ -274,6 +270,24 @@ class ParseController extends ChangeNotifier {
 
     _stage = ParseStage.parsing;
     notifyListeners();
+
+    // 先等短链跳到带 noteId 的笔记页（通常是 /discovery/item/{24位}）
+    String? noteId = XiaohongshuParser.extractNoteId(shareUrl);
+    for (var hop = 0; hop < 20 && noteId == null; hop++) {
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (_stage != ParseStage.parsing) return;
+      try {
+        final current = await web.currentUrl();
+        noteId = XiaohongshuParser.extractNoteId(current ?? '');
+      } catch (_) {
+        // 继续等
+      }
+    }
+    final id = noteId;
+    if (id == null) {
+      _fail('没有识别到小红书笔记链接');
+      return;
+    }
 
     // 页面 JS 拉数据需要时间，按 500ms 轮询最多 12 秒
     for (var attempt = 0; attempt < 24; attempt++) {
@@ -285,7 +299,7 @@ class ParseController extends ChangeNotifier {
         );
         final data = await XiaohongshuParser.decodePayload(raw.toString());
         if (data == null) continue;
-        final result = XiaohongshuParser.buildResult(data, noteId);
+        final result = XiaohongshuParser.buildResult(data, id);
         if (result.videoUrls.isEmpty && result.imageUrls.isEmpty) continue;
         _result = result;
         _stage = ParseStage.done;
