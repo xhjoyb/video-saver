@@ -13,7 +13,7 @@ import 'state/app_settings.dart';
 import 'theme/app_palette.dart';
 import 'theme/app_theme.dart';
 import 'widgets/app_background.dart';
-import 'widgets/liquid_nav_bar.dart';
+import 'widgets/ios_tab_bar.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -96,18 +96,18 @@ class _RootShellState extends State<RootShell> {
     SettingsScreen(),
   ];
 
-  static const _items = <LiquidNavItem>[
-    LiquidNavItem(
+  static const _items = <IosTabItem>[
+    IosTabItem(
       icon: Icons.auto_awesome_outlined,
       activeIcon: Icons.auto_awesome_rounded,
       label: '解析',
     ),
-    LiquidNavItem(
+    IosTabItem(
       icon: Icons.video_library_outlined,
       activeIcon: Icons.video_library_rounded,
       label: '记录',
     ),
-    LiquidNavItem(
+    IosTabItem(
       icon: Icons.settings_outlined,
       activeIcon: Icons.settings_rounded,
       label: '设置',
@@ -116,7 +116,6 @@ class _RootShellState extends State<RootShell> {
 
   @override
   Widget build(BuildContext context) {
-    final p = context.palette;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final overlay =
         (isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark).copyWith(
@@ -130,29 +129,10 @@ class _RootShellState extends State<RootShell> {
         backgroundColor: Colors.transparent,
         extendBody: true,
         body: IndexedStack(index: _index, children: _pages),
-        bottomNavigationBar: SafeArea(
-          top: false,
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: p.navBar,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: p.border),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(isDark ? 0.5 : 0.12),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: LiquidNavBar(
-              items: _items,
-              index: _index,
-              onChanged: (i) => AppEvents.tabIndex.value = i,
-            ),
-          ),
+        bottomNavigationBar: IosTabBar(
+          items: _items,
+          index: _index,
+          onChanged: (i) => AppEvents.tabIndex.value = i,
         ),
       ),
     );

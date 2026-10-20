@@ -26,7 +26,7 @@
 | 清晰度选择（按 `br` 分 原画 / 高清 / 标清） | ✅ |
 | 解析预热（启动后预加载，缩短首次等待） | ✅ |
 | 历史搜索 / 点击条目「重新解析」 | ✅ |
-| 液态形变底部导航（滑动拖尾 + 光点 + 触觉反馈） | ✅ |
+| iOS 风格底部 Tab Bar（贴底毛玻璃 + hairline + 图标填充切换） | ✅ |
 | 自适应应用图标 + 深色启动页 | ✅ |
 | 青绿主题图标 + 自绘开屏动画（光环/粒子/描边/扫光） | ✅ |
 | 多平台（快手 / 小红书 / B 站） | ⏳ 仅 UI 占位 |
@@ -92,7 +92,7 @@
 | App 内开屏动画 | `lib/app/splash_overlay.dart`：光晕呼吸 / 46 颗上浮光点 / 三层扩散环 / 描边生长 / 三角弹性 / 字距收拢 / 底部扫光，1.9s，点击可跳过 |
 | App 内品牌标识 | `lib/widgets/brand_logo.dart`（解析页 header 复用，与 launcher 图标同源几何：青绿渐变圆 + 墨绿播放三角） |
 | App 内强调色 | 深色：`accent` `#19E8BE` / `accent2` `#00C9A6` / `onAccent` `#04120F`；浅色：`accent` `#008F76` / `accent2` `#00B394` / `onAccent` 白 |
-| 底部导航指示器 | `lib/widgets/liquid_nav_bar.dart`：`sin(π·t)` 驱动液态拉伸（宽度 +20%、拖尾圆角收窄至 45%）、420ms `easeOutCubic`、连续切换从当前插值位置接续、前端光点 2→3.6px、切换触发 `HapticFeedback.selectionClick()` |
+| 底部导航 | `lib/widgets/ios_tab_bar.dart`：贴底通栏 + `BackdropFilter` 24px 毛玻璃 + 0.6px hairline + 高度 49 + 图标 23/文字 10 + 选中 filled 图标 160ms 交叉淡化 + 按压压暗 55% + 选择触觉；**无滑块/胶囊/光点** |
 
 > 注：Android 12+ 的系统 SplashScreen 只播约 1s（`windowSplashScreenAnimationDuration`），随后由 Flutter 侧动画接力；两侧背景色一致，不会闪白。
 > App 内强调色已与图标/开屏统一为青绿，全部集中在 `lib/theme/app_palette.dart`（`accent` / `accent2` / `onAccent`），页面禁止硬编码颜色。
