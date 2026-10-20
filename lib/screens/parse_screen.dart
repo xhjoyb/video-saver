@@ -263,7 +263,7 @@ class _ParseScreenState extends State<ParseScreen> {
             children: [
               _buildHeader(p),
               const SizedBox(height: 28),
-              Text('解析抖音视频\n保存无水印原片', style: AppText.hero(context)),
+              Text('解析视频\n保存无水印原片', style: AppText.hero(context)),
               const SizedBox(height: 10),
               Text('粘贴分享链接，自动解析原始视频地址', style: AppText.sub(context)),
               const SizedBox(height: 24),
@@ -328,7 +328,7 @@ class _ParseScreenState extends State<ParseScreen> {
             cursorWidth: 2,
             enabled: !busy,
             decoration: InputDecoration(
-              hintText: '粘贴抖音分享链接…',
+              hintText: '粘贴视频分享链接…',
               hintStyle: TextStyle(fontSize: 13.5, color: p.faint),
               border: InputBorder.none,
               isDense: true,
@@ -407,7 +407,7 @@ class _ParseScreenState extends State<ParseScreen> {
                   children: [
                     Expanded(
                       child: Text(
-                        result.author.isEmpty ? '抖音' : '@${result.author}',
+                        result.author.isEmpty ? '未知作者' : '@${result.author}',
                         style: AppText.label(context),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -495,7 +495,7 @@ class _ParseScreenState extends State<ParseScreen> {
           children: [
             Text('支持平台', style: AppText.section(context)),
             const Spacer(),
-            Text('抖音已接入', style: AppText.label(context)),
+            Text('已接入 1 个平台', style: AppText.label(context)),
           ],
         ),
         const SizedBox(height: 14),

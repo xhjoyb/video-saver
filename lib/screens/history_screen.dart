@@ -50,7 +50,7 @@ class HistoryScreen extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(child: _StatCard(label: '已下载', value: '${HistoryStore.instance.downloadedCount}')),
                   const SizedBox(width: 10),
-                  const Expanded(child: _StatCard(label: '平台', value: '抖音')),
+                  const Expanded(child: _StatCard(label: '平台数', value: '1')),
                 ],
               ),
             ],

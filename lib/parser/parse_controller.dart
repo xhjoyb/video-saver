@@ -69,7 +69,7 @@ class ParseController extends ChangeNotifier {
 
     final id = await DouyinParser.resolveAwemeId(input);
     if (id == null) {
-      _fail('没有识别到抖音视频链接');
+      _fail('没有识别到支持的视频链接');
       return;
     }
     _awemeId = id;
