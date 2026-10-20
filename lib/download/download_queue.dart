@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../history/history_store.dart';
+import '../platform/download_notification.dart';
 import '../platform/media_store.dart';
 import 'download_service.dart';
 
@@ -72,6 +73,8 @@ class DownloadQueue extends ChangeNotifier {
   final List<DownloadTask> _tasks = [];
 
   int _concurrency = 2;
+  bool _notificationOn = false;
+  int _lastNotifyAt = 0;
 
   List<DownloadTask> get tasks => List.unmodifiable(_tasks);
 
@@ -115,6 +118,7 @@ class DownloadQueue extends ChangeNotifier {
     _tasks.add(task);
     notifyListeners();
     _pump();
+    unawaited(_syncNotification(force: true));
     return task;
   }
 
@@ -127,12 +131,40 @@ class DownloadQueue extends ChangeNotifier {
     }
   }
 
+  /// 同步前台服务通知：有任务时启动，全部结束才停止；进度更新节流 800ms
+  Future<void> _syncNotification({int progress = -1, bool force = false}) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (!force && now - _lastNotifyAt < 800) return;
+    _lastNotifyAt = now;
+
+    final running = runningCount;
+    final queued = queuedCount;
+    if (running == 0 && queued == 0) {
+      if (_notificationOn) {
+        _notificationOn = false;
+        await DownloadNotification.stop();
+      }
+      return;
+    }
+    if (!_notificationOn) {
+      _notificationOn = true;
+      await DownloadNotification.start(running: running, queued: queued);
+    } else {
+      await DownloadNotification.update(
+        running: running,
+        queued: queued,
+        progress: progress,
+      );
+    }
+  }
+
   Future<void> _run(DownloadTask task) async {
     if (task.status != DownloadStatus.queued) return;
     task.status = DownloadStatus.running;
     task.progress = 0;
     task.error = null;
     notifyListeners();
+    unawaited(_syncNotification(force: true));
 
     File? file;
     try {
@@ -147,6 +179,7 @@ class DownloadQueue extends ChangeNotifier {
           if ((progress - task.progress).abs() >= 0.01) {
             task.progress = progress;
             notifyListeners();
+            unawaited(_syncNotification(progress: (progress * 100).round()));
           }
         },
       );
@@ -180,6 +213,7 @@ class DownloadQueue extends ChangeNotifier {
         } catch (_) {}
       }
       _pump();
+      unawaited(_syncNotification(force: true));
     }
   }
 

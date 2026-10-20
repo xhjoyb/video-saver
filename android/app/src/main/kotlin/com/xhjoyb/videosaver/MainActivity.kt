@@ -24,9 +24,44 @@ class MainActivity : FlutterActivity() {
                     "saveImage" -> handleSave(call, result, isImage = true)
                     "isSupported" -> result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
                     "openMedia" -> handleOpen(call, result)
+                    "startDownloadService" -> {
+                        DownloadForegroundService.start(
+                            this,
+                            call.argument<Int>("running") ?: 0,
+                            call.argument<Int>("queued") ?: 0,
+                        )
+                        result.success(true)
+                    }
+                    "updateDownloadService" -> {
+                        DownloadForegroundService.update(
+                            this,
+                            call.argument<Int>("running") ?: 0,
+                            call.argument<Int>("queued") ?: 0,
+                            call.argument<Int>("progress") ?: -1,
+                        )
+                        result.success(true)
+                    }
+                    "stopDownloadService" -> {
+                        DownloadForegroundService.stop(this)
+                        result.success(true)
+                    }
                     else -> result.notImplemented()
                 }
             }
+        requestNotificationPermissionIfNeeded()
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            val granted = checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                requestPermissions(
+                    arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                    2001,
+                )
+            }
+        }
     }
 
     private fun handleSave(call: MethodCall, result: MethodChannel.Result, isImage: Boolean) {
