@@ -274,8 +274,6 @@ class _ParseScreenState extends State<ParseScreen> {
               ],
               const SizedBox(height: 28),
               _buildPlatforms(context),
-              const SizedBox(height: 28),
-              _buildRecent(context),
             ],
           ),
         ),

@@ -76,7 +76,7 @@ class ParseController extends ChangeNotifier {
     _stage = ParseStage.loading;
     notifyListeners();
 
-    _timeout = Timer(const Duration(seconds: 22), () {
+    _timeout = Timer(const Duration(seconds: 35), () {
       if (busy) _fail('解析超时，请检查网络后重试');
     });
 
@@ -110,28 +110,46 @@ class ParseController extends ChangeNotifier {
       _fail('缺少视频 ID');
       return;
     }
-    try {
-      await web.runJavaScriptReturningResult(DouyinParser.detailJs(id));
-      final data = await _waitResult();
-      if (data == null) {
-        _fail('解析超时：页面未返回数据');
+    for (var attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await web.runJavaScriptReturningResult(DouyinParser.detailJs(id));
+        final data = await _waitResult();
+        if (data == null) {
+          if (attempt < 3) {
+            await Future.delayed(const Duration(milliseconds: 900));
+            continue;
+          }
+          _fail('解析超时：页面未返回数据');
+          return;
+        }
+        if (data['error'] != null) {
+          final body = '${data['body'] ?? ''}'.trim();
+          if (attempt < 3) {
+            // 首次常因页面 cookie / 签名未就绪被 Argus 拦截，稍候重试
+            await Future.delayed(const Duration(milliseconds: 1200));
+            continue;
+          }
+          _fail(body.isEmpty ? '接口返回异常：${data['error']}' : '接口返回异常：$body');
+          return;
+        }
+        final parsed = ParseResult.fromDouyin(data);
+        if (parsed.videoUrls.isEmpty && parsed.imageUrls.isEmpty) {
+          _fail('没有拿到视频或图片地址');
+          return;
+        }
+        _result = parsed;
+        _stage = ParseStage.done;
+        _timeout?.cancel();
+        notifyListeners();
+        return;
+      } catch (e) {
+        if (attempt < 3) {
+          await Future.delayed(const Duration(milliseconds: 900));
+          continue;
+        }
+        _fail('解析失败：$e');
         return;
       }
-      if (data['error'] != null) {
-        _fail('接口返回异常：${data['error']}');
-        return;
-      }
-      final parsed = ParseResult.fromDouyin(data);
-      if (parsed.videoUrls.isEmpty && parsed.imageUrls.isEmpty) {
-        _fail('没有拿到视频或图片地址');
-        return;
-      }
-      _result = parsed;
-      _stage = ParseStage.done;
-      _timeout?.cancel();
-      notifyListeners();
-    } catch (e) {
-      _fail('解析失败：$e');
     }
   }
 

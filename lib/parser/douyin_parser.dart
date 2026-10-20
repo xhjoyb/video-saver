@@ -68,29 +68,43 @@ class DouyinParser {
       + '&browser_version=120.0.0.0&browser_online=true&engine_name=Blink'
       + '&engine_version=120.0.0.0&os_name=Windows&os_version=10&platform=PC';
     fetch(u, { credentials: 'include' })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        var a = j.aweme_detail || {};
-        var v = a.video || {};
-        var play = (v.play_addr && v.play_addr.url_list) || [];
-        var cover = ((v.cover && v.cover.url_list) || [''])[0] || '';
-        var imgs = [];
-        if (a.images && a.images.length) {
-          imgs = a.images.map(function (it) { return ((it.url_list || [''])[0]); });
-        } else if (a.image_post_info && a.image_post_info.images && a.image_post_info.images.length) {
-          imgs = a.image_post_info.images.map(function (it) { return ((it.url_list || [''])[0]); });
-        }
-        window.__dyResult = JSON.stringify({
-          id: a.aweme_id || '',
-          desc: a.desc || '',
-          author: (a.author && a.author.nickname) || '',
-          cover: cover,
-          duration: v.duration || 0,
-          play: play,
-          images: imgs
+      .then(function (r) {
+        return r.text().then(function (t) {
+          var j = null;
+          try { j = JSON.parse(t); } catch (e) {}
+          if (!j) {
+            // 首次加载时页面签名/cookie 可能未就绪，服务端回 "Blocked by ..." 纯文本
+            window.__dyResult = JSON.stringify({
+              error: 'non_json',
+              status: r.status,
+              body: (t || '').slice(0, 160)
+            });
+            return;
+          }
+          var a = j.aweme_detail || {};
+          var v = a.video || {};
+          var play = (v.play_addr && v.play_addr.url_list) || [];
+          var cover = ((v.cover && v.cover.url_list) || [''])[0] || '';
+          var imgs = [];
+          if (a.images && a.images.length) {
+            imgs = a.images.map(function (it) { return ((it.url_list || [''])[0]); });
+          } else if (a.image_post_info && a.image_post_info.images && a.image_post_info.images.length) {
+            imgs = a.image_post_info.images.map(function (it) { return ((it.url_list || [''])[0]); });
+          }
+          window.__dyResult = JSON.stringify({
+            id: a.aweme_id || '',
+            desc: a.desc || '',
+            author: (a.author && a.author.nickname) || '',
+            cover: cover,
+            duration: v.duration || 0,
+            play: play,
+            images: imgs
+          });
         });
       })
-      .catch(function (e) { window.__dyResult = JSON.stringify({ error: String(e) }); });
+      .catch(function (e) {
+        window.__dyResult = JSON.stringify({ error: 'fetch', body: String(e) });
+      });
     return 'kicked';
   } catch (e) { return 'ERR ' + e; }
 })()
