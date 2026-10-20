@@ -9,6 +9,7 @@ import '../history/history_item.dart';
 import '../history/history_store.dart';
 import '../parser/bilibili_parser.dart';
 import '../parser/douyin_parser.dart';
+import '../parser/kuaishou_parser.dart';
 import '../parser/parse_controller.dart';
 import '../parser/parse_result.dart';
 import '../platform/media_store.dart';
@@ -199,9 +200,14 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
       platform: result.platform,
       referer: result.platform == 'bilibili'
           ? 'https://www.bilibili.com/'
-          : 'https://www.douyin.com/',
-      userAgent:
-          result.platform == 'bilibili' ? BilibiliParser.userAgent : null,
+          : result.platform == 'kuaishou'
+              ? KuaishouParser.referer
+              : 'https://www.douyin.com/',
+      userAgent: result.platform == 'bilibili'
+          ? BilibiliParser.userAgent
+          : result.platform == 'kuaishou'
+              ? KuaishouParser.userAgent
+              : null,
       awemeId: result.awemeId,
     );
     _toast('已加入下载队列');
@@ -693,7 +699,7 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
           children: [
             Text('支持平台', style: AppText.section(context)),
             const Spacer(),
-            Text('已接入 2 个平台', style: AppText.label(context)),
+            Text('已接入 3 个平台', style: AppText.label(context)),
           ],
         ),
         const SizedBox(height: 14),
@@ -706,14 +712,20 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
                 active: true,
               ),
             ),
-            Expanded(child: PlatformItem(name: '快手', icon: Icons.videocam_rounded)),
+            Expanded(
+              child: PlatformItem(
+                name: '快手',
+                icon: Icons.videocam_rounded,
+                active: true,
+                badge: 'NEW',
+              ),
+            ),
             Expanded(child: PlatformItem(name: '小红书', icon: Icons.bookmark_rounded)),
             Expanded(
               child: PlatformItem(
                 name: 'B 站',
                 icon: Icons.live_tv_rounded,
                 active: true,
-                badge: 'NEW',
               ),
             ),
           ],

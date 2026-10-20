@@ -6,6 +6,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import 'bilibili_parser.dart';
 import 'douyin_parser.dart';
+import 'kuaishou_parser.dart';
 import 'parse_result.dart';
 
 enum ParseStage { idle, resolving, loading, parsing, done, error }
@@ -83,6 +84,12 @@ class ParseController extends ChangeNotifier {
     // B 站走纯 HTTP（wbi 签名），不需要 WebView
     if (BilibiliParser.looksLike(input)) {
       await _parseBilibili(input);
+      return;
+    }
+
+    // 快手：移动分享页 SSR 直出 mp4，同样走纯 HTTP
+    if (KuaishouParser.looksLike(input)) {
+      await _parseKuaishou(input);
       return;
     }
 
@@ -206,6 +213,24 @@ class ParseController extends ChangeNotifier {
       final message =
           text.startsWith('Exception: ') ? text.substring(11) : text;
       _fail(message.startsWith('B 站') ? message : 'B 站解析失败：$message');
+    }
+  }
+
+  Future<void> _parseKuaishou(String input) async {
+    try {
+      final parsed = await KuaishouParser.parse(input);
+      if (parsed.videoUrls.isEmpty) {
+        _fail('没有拿到快手视频地址');
+        return;
+      }
+      _result = parsed;
+      _stage = ParseStage.done;
+      notifyListeners();
+    } catch (e) {
+      final text = e.toString();
+      final message =
+          text.startsWith('Exception: ') ? text.substring(11) : text;
+      _fail(message.startsWith('快手') ? message : '快手解析失败：$message');
     }
   }
 
