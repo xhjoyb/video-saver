@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../dev/parse_probe_screen.dart';
+import '../download/download_queue.dart';
 import '../state/app_settings.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_theme.dart';
@@ -28,6 +29,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ));
     if (!mounted) return;
     _toast('保存路径已复制到剪贴板');
+  }
+
+  /// 并发上限：1–3，立即作用于下载队列
+  Future<void> _pickConcurrency() async {
+    final settings = AppSettingsScope.of(context);
+    final current = settings.downloadConcurrency;
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: context.palette.cardAlt,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetContext) {
+        final p = sheetContext.palette;
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              for (final n in [1, 2, 3])
+                ListTile(
+                  title: Text('$n 个任务'),
+                  trailing: n == current
+                      ? Icon(Icons.check_rounded, color: p.accent)
+                      : null,
+                  onTap: () => Navigator.pop(sheetContext, n),
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+    if (picked == null) return;
+    await settings.setDownloadConcurrency(picked);
+    DownloadQueue.instance.concurrency = picked;
+    if (!mounted) return;
+    _toast('同时下载数已设为 $picked');
   }
 
   Future<void> _pickImage() async {
@@ -163,6 +202,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: '视频 Movies/VideoSaver · 图片 Pictures/VideoSaver',
                   onTap: _copySavePaths,
                 ),
+                _Divider(color: p.border),
+                _RowTile(
+                  icon: Icons.download_rounded,
+                  title: '同时下载数',
+                  subtitle: '${settings.downloadConcurrency} 个任务',
+                  onTap: _pickConcurrency,
+                ),
               ],
             ),
           ),
@@ -190,7 +236,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _RowTile(
                   icon: Icons.info_outline_rounded,
                   title: '版本',
-                  subtitle: '0.4.0 (build 4)',
+                  subtitle: '0.5.0 (build 5)',
                 ),
                 _Divider(color: p.border),
                 _RowTile(

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../app/app_events.dart';
+import '../download/download_queue.dart';
 import '../download/download_service.dart';
 import '../history/history_item.dart';
 import '../history/history_store.dart';
@@ -189,50 +190,21 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
   Future<void> _download() async {
     final result = _parse.result;
     if (result == null || result.videoUrls.isEmpty) return;
-    setState(() {
-      _downloading = true;
-      _progress = 0;
-    });
     final qualities = result.qualities;
     final quality = qualities[_qualityIndex.clamp(0, qualities.length - 1)];
-    try {
-      final file = await DownloadService.download(
-        quality.url,
-        result.fileName,
-        referer: result.platform == 'bilibili'
-            ? 'https://www.bilibili.com/'
-            : 'https://www.douyin.com/',
-        userAgent: result.platform == 'bilibili'
-            ? BilibiliParser.userAgent
-            : null,
-        onProgress: (received, total) {
-          if (!mounted || total <= 0) return;
-          final p = received / total;
-          if ((p - _progress).abs() >= 0.01) {
-            setState(() => _progress = p);
-          }
-        },
-      );
-      if (!mounted) return;
-      final saved = await MediaStore.saveVideo(file, result.fileName);
-      if (!mounted) return;
-      if (saved != null) {
-        await HistoryStore.instance.markDownloaded(
-          result.awemeId,
-          'Movies/VideoSaver/${result.fileName}',
-        );
-        _toastSaved('已保存到相册：Movies/VideoSaver', saved);
-        try {
-          await file.delete();
-        } catch (_) {}
-      } else {
-        _toast('已保存到：${file.path}');
-      }
-    } catch (e) {
-      if (mounted) _toast('下载失败：$e');
-    } finally {
-      if (mounted) setState(() => _downloading = false);
-    }
+    DownloadQueue.instance.enqueue(
+      title: result.displayTitle,
+      fileName: result.fileName,
+      url: quality.url,
+      platform: result.platform,
+      referer: result.platform == 'bilibili'
+          ? 'https://www.bilibili.com/'
+          : 'https://www.douyin.com/',
+      userAgent:
+          result.platform == 'bilibili' ? BilibiliParser.userAgent : null,
+      awemeId: result.awemeId,
+    );
+    _toast('已加入下载队列');
   }
 
   Future<void> _downloadImages() async {
@@ -367,6 +339,7 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
                 const SizedBox(height: 16),
                 _buildResultCard(context, _parse.result!),
               ],
+              _buildQueueCard(),
               const SizedBox(height: 28),
               _buildPlatforms(context),
             ],
@@ -584,7 +557,7 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
                   Text('下载中 ${(_progress * 100).toStringAsFixed(0)}%', style: AppText.label(context)),
                 ] else if (result.isVideo)
                   PrimaryButton(
-                    label: '下载无水印视频',
+                    label: '加入下载队列',
                     icon: Icons.download_rounded,
                     height: 42,
                     expand: true,
@@ -603,6 +576,112 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
+    );
+  }
+
+  /// 下载队列卡片：展示排队/进行中/已完成任务，可直接打开或取消
+  Widget _buildQueueCard() {
+    final queue = DownloadQueue.instance;
+    return AnimatedBuilder(
+      animation: queue,
+      builder: (context, _) {
+        final tasks = queue.tasks;
+        if (tasks.isEmpty) return const SizedBox.shrink();
+        final p = context.palette;
+        final hasFinished = tasks.any((t) => t.finished);
+        return Padding(
+          padding: const EdgeInsets.only(top: 16),
+          child: AppCard(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text('下载队列', style: AppText.section(context)),
+                    const Spacer(),
+                    Text(
+                      '运行 ${queue.runningCount} · 等待 ${queue.queuedCount}',
+                      style: AppText.label(context),
+                    ),
+                  ],
+                ),
+                for (final task in tasks)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 9),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                task.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppText.body(context),
+                              ),
+                              const SizedBox(height: 4),
+                              if (task.status == DownloadStatus.running)
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(3),
+                                  child: LinearProgressIndicator(
+                                    value: task.progress,
+                                    minHeight: 3,
+                                    backgroundColor: p.cardAlt,
+                                    valueColor:
+                                        AlwaysStoppedAnimation(p.accent),
+                                  ),
+                                )
+                              else
+                                Text(
+                                  task.statusText,
+                                  style: AppText.label(context),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        if (task.status == DownloadStatus.success &&
+                            task.savedUri != null)
+                          GestureDetector(
+                            onTap: () => MediaStore.openMedia(task.savedUri!),
+                            child: Icon(
+                              Icons.open_in_new_rounded,
+                              size: 18,
+                              color: p.accent,
+                            ),
+                          )
+                        else if (task.status == DownloadStatus.queued)
+                          GestureDetector(
+                            onTap: () => queue.cancel(task.id),
+                            child: Icon(
+                              Icons.close_rounded,
+                              size: 18,
+                              color: p.faint,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                if (hasFinished) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: GestureDetector(
+                      onTap: queue.removeFinished,
+                      child: Text(
+                        '清除已完成',
+                        style: TextStyle(fontSize: 11.5, color: p.accent),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
