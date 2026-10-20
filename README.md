@@ -26,7 +26,7 @@
 | 清晰度选择（按 `br` 分 原画 / 高清 / 标清） | ✅ |
 | 解析预热（启动后预加载，缩短首次等待） | ✅ |
 | 历史搜索 / 点击条目「重新解析」 | ✅ |
-| 液态玻璃（Liquid Glass）底部导航：玻璃质感 + 液态形变指示器 | ✅ |
+| 液态玻璃底部导航：可拖动切换 + 液态形变 + 玻璃材质 | ✅ |
 | 自适应应用图标 + 深色启动页 | ✅ |
 | 青绿主题图标 + 自绘开屏动画（光环/粒子/描边/扫光） | ✅ |
 | 多平台（快手 / 小红书 / B 站） | ⏳ 仅 UI 占位 |
@@ -92,7 +92,7 @@
 | App 内开屏动画 | `lib/app/splash_overlay.dart`：光晕呼吸 / 46 颗上浮光点 / 三层扩散环 / 描边生长 / 三角弹性 / 字距收拢 / 底部扫光，1.9s，点击可跳过 |
 | App 内品牌标识 | `lib/widgets/brand_logo.dart`（解析页 header 复用，与 launcher 图标同源几何：青绿渐变圆 + 墨绿播放三角） |
 | App 内强调色 | 深色：`accent` `#19E8BE` / `accent2` `#00C9A6` / `onAccent` `#04120F`；浅色：`accent` `#008F76` / `accent2` `#00B394` / `onAccent` 白 |
-| 底部导航 | `lib/widgets/liquid_glass_tab_bar.dart`：悬浮玻璃胶囊（`BackdropFilter` 30px + 白/黑渐变 + 1px 亮边 + 外投影）+ 液态形变指示器（`sin(π·t)` 拉伸 18%、拖尾圆角收窄 58%、460ms `easeOutCubic`、可打断接续）+ 指示器三层叠加（玻璃底色 / 青绿染色 / 底部厚度）+ 顶部镜面高光带 + 前端流珠；选中 filled 图标 + 青绿发光 |
+| 底部导航 | `lib/widgets/liquid_glass_tab_bar.dart`：悬浮玻璃胶囊（`BackdropFilter` 26px + 饱和度 ×1.5 + 白/黑渐变 + 1px 亮边 + 外投影）+ 液态指示器（点击 380ms 缓动 / **水平拖动跟手** / 松手弹簧吸附 / 速度驱动拉伸 22%、拖尾圆角收窄 50%）+ 四层叠加（白玻璃底 / 极淡青绿 / 底部厚度 / 顶亮底暗受光边）+ 顶部镜面高光；无白点、无彩色光斑 |
 
 > 注：Android 12+ 的系统 SplashScreen 只播约 1s（`windowSplashScreenAnimationDuration`），随后由 Flutter 侧动画接力；两侧背景色一致，不会闪白。
 > App 内强调色已与图标/开屏统一为青绿，全部集中在 `lib/theme/app_palette.dart`（`accent` / `accent2` / `onAccent`），页面禁止硬编码颜色。
