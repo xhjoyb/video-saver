@@ -13,7 +13,7 @@ import 'state/app_settings.dart';
 import 'theme/app_palette.dart';
 import 'theme/app_theme.dart';
 import 'widgets/app_background.dart';
-import 'widgets/ios_tab_bar.dart';
+import 'widgets/liquid_glass_tab_bar.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -96,18 +96,18 @@ class _RootShellState extends State<RootShell> {
     SettingsScreen(),
   ];
 
-  static const _items = <IosTabItem>[
-    IosTabItem(
+  static const _items = <LiquidGlassTabItem>[
+    LiquidGlassTabItem(
       icon: Icons.auto_awesome_outlined,
       activeIcon: Icons.auto_awesome_rounded,
       label: '解析',
     ),
-    IosTabItem(
+    LiquidGlassTabItem(
       icon: Icons.video_library_outlined,
       activeIcon: Icons.video_library_rounded,
       label: '记录',
     ),
-    IosTabItem(
+    LiquidGlassTabItem(
       icon: Icons.settings_outlined,
       activeIcon: Icons.settings_rounded,
       label: '设置',
@@ -129,7 +129,7 @@ class _RootShellState extends State<RootShell> {
         backgroundColor: Colors.transparent,
         extendBody: true,
         body: IndexedStack(index: _index, children: _pages),
-        bottomNavigationBar: IosTabBar(
+        bottomNavigationBar: LiquidGlassTabBar(
           items: _items,
           index: _index,
           onChanged: (i) => AppEvents.tabIndex.value = i,
