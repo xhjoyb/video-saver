@@ -6,7 +6,7 @@
 - 技术栈：Flutter 3.24.5 + Material 3，Kotlin 原生壳（MethodChannel）
 - Android：minSdk 26 / targetSdk 34，仅 arm64 出包
 - 构建：GitHub Actions 云端构建 → Release
-- 当前基线：**`flutter-33`**（commit `76f848f1`，App 内版本 `0.3.0 (build 3)`），语义 tag `v0.3.0`
+- 当前基线：**`flutter-33`**（commit `76f848f1`，App 内版本 `0.3.0 (build 3)`），语义 tag **`v0.3.0-visual`**（上一档 `v0.3.0`）
 - 仓库：**public** — https://github.com/xhjoyb/video-saver
 
 ## 当前能力
@@ -155,6 +155,18 @@ App 内开发者页面：**设置 → 开发者 → 解析探针**，把 WebView
 | `flutter-31` | 应用图标 + 深色启动页、解析预热、清晰度选择、历史搜索与重新解析 |
 | `flutter-32` | （空）文档提交触发的一次重复构建，已取消，无产物 |
 | `flutter-33` | 青绿主题图标（adaptive vector + PNG 兜底）、自绘开屏动画、Android 12+ SplashScreen AVD |
+
+## 基线（回退点）
+
+| tag | commit | 对应构建 | 内容 |
+|---|---|---|---|
+| `v0.1.0-compose` | `3010f6d7` | — | 最初 Kotlin/Compose 版 |
+| `v0.3.0-parse` | `2252f1ed` | `flutter-21` | 首个解析可用 |
+| `v0.3.0` | `40118796` | `flutter-22` | 解析历史（记录页接真实数据） |
+| `v0.3.0-visual` | `76f848f1` | `flutter-33` | 青绿图标 + 开屏动画（**当前基线**） |
+
+回退方式：用 `workflow_dispatch` 指定目标 commit 触发 `flutter.yml`，约 15–25 分钟重新出包。
+Release 与构建物只增不删，清理必须由需求方明确指定（范围 + 数量）。
 
 ---
 
