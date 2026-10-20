@@ -89,6 +89,7 @@
 | 位图兜底 | `tools/gen_icons.py` 生成 48–192px PNG（纯标准库，不依赖 Pillow） |
 | Android 12+ 系统启动图 | `values-v31/styles.xml` + `drawable/ic_splash_anim.xml`（旋转弧 AnimatedVector） |
 | App 内开屏动画 | `lib/app/splash_overlay.dart`：光晕呼吸 / 46 颗上浮光点 / 三层扩散环 / 描边生长 / 三角弹性 / 字距收拢 / 底部扫光，1.9s，点击可跳过 |
+| App 内品牌标识 | `lib/widgets/brand_logo.dart`（解析页 header 复用，与 launcher 图标同源几何：青绿渐变圆 + 墨绿播放三角） |
 
 > 注：Android 12+ 的系统 SplashScreen 只播约 1s（`windowSplashScreenAnimationDuration`），随后由 Flutter 侧动画接力；两侧背景色一致，不会闪白。
 > App 内强调色（`AppPalette.accent`）目前仍为珊瑚红 `#FF3B5C`，与图标/开屏的青绿不同——如需统一，改 `lib/theme/app_palette.dart` 的两处 `accent` / `accent2` 即可。

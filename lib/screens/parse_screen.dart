@@ -12,6 +12,7 @@ import '../platform/media_store.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_card.dart';
+import '../widgets/brand_logo.dart';
 import '../widgets/platform_item.dart';
 import '../widgets/primary_button.dart';
 
@@ -313,15 +314,7 @@ class _ParseScreenState extends State<ParseScreen> {
   Widget _buildHeader(AppPalette p) {
     return Row(
       children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [p.accent, p.accent2]),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
-        ),
+        const BrandLogo(size: 32),
         const SizedBox(width: 10),
         Text(
           '视频嗅探',
