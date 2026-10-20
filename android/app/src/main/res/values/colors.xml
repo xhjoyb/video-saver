@@ -1,5 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#101014</color>
-    <color name="launch_bg">#08080C</color>
+    <!-- 青绿主题：图标 / 启动页统一取这几支颜色 -->
+    <color name="ic_launcher_background">#061412</color>
+    <color name="launch_bg">#05100E</color>
+    <color name="mint_bright">#6BFFDD</color>
+    <color name="mint">#19E8BE</color>
+    <color name="mint_deep">#00A98A</color>
+    <color name="ink">#04120F</color>
 </resources>

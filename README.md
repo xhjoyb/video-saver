@@ -27,6 +27,7 @@
 | 解析预热（启动后预加载，缩短首次等待） | ✅ |
 | 历史搜索 / 点击条目「重新解析」 | ✅ |
 | 自适应应用图标 + 深色启动页 | ✅ |
+| 青绿主题图标 + 自绘开屏动画（光环/粒子/描边/扫光） | ✅ |
 | 多平台（快手 / 小红书 / B 站） | ⏳ 仅 UI 占位 |
 
 ## 抖音解析链路（核心）
@@ -107,6 +108,7 @@ workflow 内无明文；跨版本覆盖安装指纹稳定 `763a3827`。
 | `dl_asset.py` / `dl_artifact.py` | 多线程 Range 下载 Release / artifact（单连接会被限速） |
 | `fetch_keystore.py` / `ci_status.py` | keystore 取回、CI 状态 |
 | `img_ascii.py` | 截图转字符画，无图形环境判断布局 |
+| `gen_icons.py` | 纯标准库生成青绿 launcher PNG（`--preview` 打字符画预览） |
 | `abogus.py` / `sm3.py` | a_bogus 参考实现（主路径不用，留作纯 HTTP 备选） |
 | `dy_*.py` / `mcp_capture.py` / `dy_hook.js` | 抓包 MCP 客户端、Frida Hook 探针、接口探测（逆向期工具） |
 | `verify_url.py` | 校验直链（206 / video/mp4 / ftyp / 是否带 watermark） |

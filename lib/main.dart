@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dev/parse_probe_screen.dart';
 import 'app/app_events.dart';
+import 'app/splash_overlay.dart';
 import 'history/history_store.dart';
 import 'screens/history_screen.dart';
 import 'screens/parse_screen.dart';
@@ -50,7 +51,9 @@ class VideoSaverApp extends StatelessWidget {
               return MaterialPageRoute(builder: (_) => const RootShell());
             },
             builder: (context, child) {
-              return AppBackground(child: child ?? const SizedBox.shrink());
+              return AppBackground(
+                child: SplashGate(child: child ?? const SizedBox.shrink()),
+              );
             },
           );
         },
