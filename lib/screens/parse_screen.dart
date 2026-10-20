@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../app/app_events.dart';
 import '../download/download_service.dart';
 import '../history/history_item.dart';
 import '../history/history_store.dart';
@@ -28,11 +29,25 @@ class _ParseScreenState extends State<ParseScreen> {
   double _progress = 0;
   String? _lastRecordedId;
   final Set<int> _selectedImages = <int>{};
+  int _qualityIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _parse.addListener(_onParseChanged);
+    AppEvents.pendingParse.addListener(_onPendingParse);
+    // 预热 WebView，缩短首次解析等待并提前拿到 cookie
+    Future.delayed(const Duration(milliseconds: 900), () {
+      if (mounted) _parse.warmUp();
+    });
+  }
+
+  void _onPendingParse() {
+    final value = AppEvents.pendingParse.value;
+    if (value == null || value.isEmpty) return;
+    AppEvents.pendingParse.value = null;
+    _linkController.text = value;
+    _startParse();
   }
 
   void _onParseChanged() {
@@ -47,6 +62,7 @@ class _ParseScreenState extends State<ParseScreen> {
         _parse.stage == ParseStage.done &&
         _lastRecordedId != result.awemeId) {
       _lastRecordedId = result.awemeId;
+      _qualityIndex = 0;
       _selectedImages
         ..clear()
         ..addAll(List<int>.generate(result.imageUrls.length, (i) => i));
@@ -68,6 +84,7 @@ class _ParseScreenState extends State<ParseScreen> {
   @override
   void dispose() {
     _parse.removeListener(_onParseChanged);
+    AppEvents.pendingParse.removeListener(_onPendingParse);
     _parse.dispose();
     _linkController.dispose();
     super.dispose();
@@ -108,9 +125,11 @@ class _ParseScreenState extends State<ParseScreen> {
       _downloading = true;
       _progress = 0;
     });
+    final qualities = result.qualities;
+    final quality = qualities[_qualityIndex.clamp(0, qualities.length - 1)];
     try {
       final file = await DownloadService.download(
-        result.videoUrls.first,
+        quality.url,
         result.fileName,
         onProgress: (received, total) {
           if (!mounted || total <= 0) return;
@@ -418,6 +437,38 @@ class _ParseScreenState extends State<ParseScreen> {
                       ),
                   ],
                 ),
+                if (result.isVideo && result.qualities.length > 1) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (var i = 0; i < result.qualities.length; i++)
+                        GestureDetector(
+                          onTap: () => setState(() => _qualityIndex = i),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: i == _qualityIndex
+                                  ? p.accent.withOpacity(0.16)
+                                  : p.cardAlt,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: i == _qualityIndex ? p.accent : p.border,
+                              ),
+                            ),
+                            child: Text(
+                              result.qualities[i].label,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: i == _qualityIndex ? p.accent : p.dim,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
                 if (result.isImages) ...[
                   const SizedBox(height: 8),
                   Row(

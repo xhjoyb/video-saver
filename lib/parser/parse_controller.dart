@@ -48,6 +48,18 @@ class ParseController extends ChangeNotifier {
   Timer? _debounce;
   Timer? _timeout;
   bool _probeStarted = false;
+  bool _warmed = false;
+
+  /// 预热：提前打开 douyin.com 让 cookie / 签名就绪，降低首次解析被拦与耗时
+  Future<void> warmUp() async {
+    if (_warmed) return;
+    _warmed = true;
+    try {
+      if (_stage == ParseStage.idle) {
+        await web.loadRequest(Uri.parse('https://www.douyin.com/'));
+      }
+    } catch (_) {}
+  }
 
   ParseStage get stage => _stage;
   ParseResult? get result => _result;

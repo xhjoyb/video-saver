@@ -1,21 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../app/app_events.dart';
 import '../history/history_item.dart';
 import '../history/history_store.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_card.dart';
 
-class HistoryScreen extends StatelessWidget {
+class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
+
+  @override
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends State<HistoryScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: HistoryStore.instance,
       builder: (context, _) {
-        final items = HistoryStore.instance.items;
+        final all = HistoryStore.instance.items;
+        final q = _query.trim().toLowerCase();
+        final items = q.isEmpty
+            ? all
+            : all
+                .where((e) =>
+                    e.title.toLowerCase().contains(q) ||
+                    e.author.toLowerCase().contains(q) ||
+                    e.awemeId.contains(q))
+                .toList();
+
         return SafeArea(
           bottom: false,
           child: ListView(
@@ -26,7 +51,7 @@ class HistoryScreen extends StatelessWidget {
                 children: [
                   Text('解析记录', style: AppText.title(context)),
                   const Spacer(),
-                  if (items.isNotEmpty)
+                  if (all.isNotEmpty)
                     GestureDetector(
                       onTap: () => _confirmClear(context),
                       child: Padding(
@@ -37,10 +62,19 @@ class HistoryScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 6),
-              Text('解析过的视频会保存在这里', style: AppText.label(context)),
-              const SizedBox(height: 20),
-              if (items.isEmpty)
+              Text(
+                all.isEmpty ? '解析过的视频会保存在这里' : '共 ${all.length} 条，点击条目可重新解析',
+                style: AppText.label(context),
+              ),
+              if (all.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                _buildSearch(context),
+              ],
+              const SizedBox(height: 18),
+              if (all.isEmpty)
                 _buildEmpty(context)
+              else if (items.isEmpty)
+                _buildNoMatch(context)
               else
                 ...items.map((item) => _HistoryTile(item: item)),
               const SizedBox(height: 20),
@@ -57,6 +91,47 @@ class HistoryScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildSearch(BuildContext context) {
+    final p = context.palette;
+    return Container(
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: p.cardAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: p.border),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.search_rounded, size: 16, color: p.faint),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              style: TextStyle(fontSize: 13, color: p.text),
+              cursorColor: p.accent,
+              decoration: InputDecoration(
+                hintText: '搜索标题 / 作者 / ID',
+                hintStyle: TextStyle(fontSize: 13, color: p.faint),
+                border: InputBorder.none,
+                isDense: true,
+              ),
+              onChanged: (v) => setState(() => _query = v),
+            ),
+          ),
+          if (_query.isNotEmpty)
+            GestureDetector(
+              onTap: () {
+                _searchController.clear();
+                setState(() => _query = '');
+              },
+              child: Icon(Icons.close_rounded, size: 15, color: p.faint),
+            ),
+        ],
+      ),
     );
   }
 
@@ -87,6 +162,15 @@ class HistoryScreen extends StatelessWidget {
             style: AppText.label(context),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildNoMatch(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
+      child: Center(
+        child: Text('没有找到匹配的记录', style: AppText.label(context)),
       ),
     );
   }
@@ -211,6 +295,16 @@ class _HistoryTile extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
+              leading: const Icon(Icons.refresh_rounded),
+              title: const Text('重新解析'),
+              subtitle: const Text('回到解析页并自动开始（直链有时效，需要重新获取）'),
+              onTap: () {
+                Navigator.pop(ctx);
+                AppEvents.tabIndex.value = 0;
+                AppEvents.pendingParse.value = item.awemeId;
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.link_rounded),
               title: const Text('复制视频直链'),
               onTap: () async {
@@ -226,7 +320,7 @@ class _HistoryTile extends StatelessWidget {
             if (item.downloaded)
               ListTile(
                 leading: const Icon(Icons.folder_rounded),
-                title: const Text('查看保存位置'),
+                title: const Text('保存位置'),
                 subtitle: Text(item.filePath ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
                 onTap: () => Navigator.pop(ctx),
               ),

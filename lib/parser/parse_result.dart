@@ -1,3 +1,12 @@
+/// 一档清晰度（按 br 码率区分）
+class VideoQuality {
+  const VideoQuality({required this.label, required this.url, required this.br});
+
+  final String label;
+  final String url;
+  final int br;
+}
+
 /// 解析结果模型（多平台通用，抖音先落地）
 class ParseResult {
   const ParseResult({
@@ -22,6 +31,30 @@ class ParseResult {
 
   bool get isImages => imageUrls.isNotEmpty;
   bool get isVideo => !isImages && videoUrls.isNotEmpty;
+
+  /// 按 URL 里的 br（码率）分档，供清晰度选择使用
+  List<VideoQuality> get qualities {
+    final parsed = <VideoQuality>[];
+    final seen = <int>{};
+    for (final url in videoUrls) {
+      final m = RegExp(r'[?&]br=(\d+)').firstMatch(url);
+      final br = int.tryParse(m?.group(1) ?? '') ?? 0;
+      if (!seen.add(br)) continue;
+      parsed.add(VideoQuality(label: '', url: url, br: br));
+    }
+    parsed.sort((a, b) => b.br.compareTo(a.br));
+    final labels = <String>['原画', '高清', '标清'];
+    return [
+      for (var i = 0; i < parsed.length; i++)
+        VideoQuality(
+          label: parsed.length == 1
+              ? '原画'
+              : (i < labels.length ? labels[i] : '标清'),
+          url: parsed[i].url,
+          br: parsed[i].br,
+        ),
+    ];
+  }
 
   String get durationText {
     final total = (durationMs / 1000).round();

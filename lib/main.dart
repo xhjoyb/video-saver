@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dev/parse_probe_screen.dart';
+import 'app/app_events.dart';
 import 'history/history_store.dart';
 import 'screens/history_screen.dart';
 import 'screens/parse_screen.dart';
@@ -68,6 +69,23 @@ class RootShell extends StatefulWidget {
 class _RootShellState extends State<RootShell> {
   int _index = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    AppEvents.tabIndex.addListener(_syncTab);
+  }
+
+  void _syncTab() {
+    if (!mounted) return;
+    setState(() => _index = AppEvents.tabIndex.value);
+  }
+
+  @override
+  void dispose() {
+    AppEvents.tabIndex.removeListener(_syncTab);
+    super.dispose();
+  }
+
   static const _pages = <Widget>[
     ParseScreen(),
     HistoryScreen(),
@@ -120,7 +138,7 @@ class _RootShellState extends State<RootShell> {
                     child: _NavItem(
                       meta: _items[i],
                       selected: _index == i,
-                      onTap: () => setState(() => _index = i),
+                      onTap: () => AppEvents.tabIndex.value = i,
                     ),
                   ),
               ],
