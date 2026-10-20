@@ -5,6 +5,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../download/download_service.dart';
 import '../parser/parse_controller.dart';
 import '../parser/parse_result.dart';
+import '../platform/media_store.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_card.dart';
@@ -95,7 +96,16 @@ class _ParseScreenState extends State<ParseScreen> {
         },
       );
       if (!mounted) return;
-      _toast('已保存：${file.path.split('/').last}');
+      final saved = await MediaStore.saveVideo(file, result.fileName);
+      if (!mounted) return;
+      if (saved != null) {
+        _toast('已保存到相册：Movies/VideoSaver');
+        try {
+          await file.delete();
+        } catch (_) {}
+      } else {
+        _toast('已保存到：${file.path}');
+      }
     } catch (e) {
       if (mounted) _toast('下载失败：$e');
     } finally {
