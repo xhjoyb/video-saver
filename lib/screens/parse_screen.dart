@@ -198,6 +198,9 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
       final file = await DownloadService.download(
         quality.url,
         result.fileName,
+        referer: result.platform == 'bilibili'
+            ? 'https://www.bilibili.com/'
+            : 'https://www.douyin.com/',
         onProgress: (received, total) {
           if (!mounted || total <= 0) return;
           final p = received / total;
@@ -607,7 +610,7 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
           children: [
             Text('支持平台', style: AppText.section(context)),
             const Spacer(),
-            Text('已接入 1 个平台', style: AppText.label(context)),
+            Text('已接入 2 个平台', style: AppText.label(context)),
           ],
         ),
         const SizedBox(height: 14),
@@ -618,12 +621,18 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
                 name: '抖音',
                 icon: Icons.music_note_rounded,
                 active: true,
-                badge: 'NEW',
               ),
             ),
             Expanded(child: PlatformItem(name: '快手', icon: Icons.videocam_rounded)),
             Expanded(child: PlatformItem(name: '小红书', icon: Icons.bookmark_rounded)),
-            Expanded(child: PlatformItem(name: 'B 站', icon: Icons.live_tv_rounded)),
+            Expanded(
+              child: PlatformItem(
+                name: 'B 站',
+                icon: Icons.live_tv_rounded,
+                active: true,
+                badge: 'NEW',
+              ),
+            ),
           ],
         ),
       ],

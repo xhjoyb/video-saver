@@ -18,6 +18,7 @@ class ParseResult {
     required this.durationMs,
     required this.videoUrls,
     this.imageUrls = const [],
+    this.qualityNames = const [],
   });
 
   final String platform;
@@ -29,11 +30,26 @@ class ParseResult {
   final List<String> videoUrls;
   final List<String> imageUrls;
 
+  /// 可选：与 [videoUrls] 一一对应的清晰度名称（如 B 站 720P/360P）。
+  /// 非空时 [qualities] 会直接使用这些标签，不再按 URL 里的 br 推断。
+  final List<String> qualityNames;
+
   bool get isImages => imageUrls.isNotEmpty;
   bool get isVideo => !isImages && videoUrls.isNotEmpty;
 
   /// 按 URL 里的 br（码率）分档，供清晰度选择使用
   List<VideoQuality> get qualities {
+    // 平台直接给了清晰度名称（如 B 站 720P / 360P）时，按给定顺序展示
+    if (qualityNames.isNotEmpty && qualityNames.length == videoUrls.length) {
+      return [
+        for (var i = 0; i < videoUrls.length; i++)
+          VideoQuality(
+            label: qualityNames[i],
+            url: videoUrls[i],
+            br: videoUrls.length - i,
+          ),
+      ];
+    }
     final parsed = <VideoQuality>[];
     final seen = <int>{};
     for (final url in videoUrls) {
@@ -69,7 +85,7 @@ class ParseResult {
     final safe = title.replaceAll(RegExp(r'[\\/:*?"<>|\s]+'), '_');
     // 空标题只保留平台前缀，避免拼成 douyin_<id>_<id>.mp4
     final base = safe.isEmpty
-        ? 'douyin'
+        ? platform
         : (safe.length > 40 ? safe.substring(0, 40) : safe);
     return '${base}_$awemeId.mp4';
   }

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import 'bilibili_parser.dart';
 import 'douyin_parser.dart';
 import 'parse_result.dart';
 
@@ -78,6 +79,12 @@ class ParseController extends ChangeNotifier {
     _error = null;
     _stage = ParseStage.resolving;
     notifyListeners();
+
+    // B 站走纯 HTTP（wbi 签名），不需要 WebView
+    if (BilibiliParser.looksLike(input)) {
+      await _parseBilibili(input);
+      return;
+    }
 
     final id = await DouyinParser.resolveAwemeId(input);
     if (id == null) {
@@ -182,6 +189,24 @@ class ParseController extends ChangeNotifier {
       }
     }
     return null;
+  }
+
+  Future<void> _parseBilibili(String input) async {
+    try {
+      final parsed = await BilibiliParser.parse(input);
+      if (parsed.videoUrls.isEmpty) {
+        _fail('没有拿到 B 站播放地址');
+        return;
+      }
+      _result = parsed;
+      _stage = ParseStage.done;
+      notifyListeners();
+    } catch (e) {
+      final text = e.toString();
+      final message =
+          text.startsWith('Exception: ') ? text.substring(11) : text;
+      _fail(message.startsWith('B 站') ? message : 'B 站解析失败：$message');
+    }
   }
 
   void _fail(String message) {
