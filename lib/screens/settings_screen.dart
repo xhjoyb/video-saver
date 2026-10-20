@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../dev/parse_probe_screen.dart';
 import '../state/app_settings.dart';
@@ -14,13 +15,19 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _haptic = true;
-  bool _autoClipboard = false;
-
   void _toast(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
     );
+  }
+
+  /// 保存路径不可改（Android 10+ 由 MediaStore 决定），但可以复制出来
+  Future<void> _copySavePaths() async {
+    await Clipboard.setData(const ClipboardData(
+      text: 'Movies/VideoSaver（视频）\nPictures/VideoSaver（图片）',
+    ));
+    if (!mounted) return;
+    _toast('保存路径已复制到剪贴板');
   }
 
   Future<void> _pickImage() async {
@@ -153,15 +160,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _RowTile(
                   icon: Icons.folder_rounded,
                   title: '保存位置',
-                  subtitle: 'Movies/VideoSaver',
-                  onTap: () => _toast('目录选择开发中'),
-                ),
-                _Divider(color: p.border),
-                _RowTile(
-                  icon: Icons.download_rounded,
-                  title: '同时下载数',
-                  subtitle: '3 个任务',
-                  onTap: () => _toast('并发设置开发中'),
+                  subtitle: '视频 Movies/VideoSaver · 图片 Pictures/VideoSaver',
+                  onTap: _copySavePaths,
                 ),
               ],
             ),
@@ -175,15 +175,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _SwitchTile(
                   icon: Icons.vibration_rounded,
                   title: '震动反馈',
-                  value: _haptic,
-                  onChanged: (v) => setState(() => _haptic = v),
+                  value: settings.haptic,
+                  onChanged: settings.setHaptic,
                 ),
                 _Divider(color: p.border),
                 _SwitchTile(
                   icon: Icons.content_paste_go_rounded,
                   title: '自动识别剪贴板',
-                  value: _autoClipboard,
-                  onChanged: (v) => setState(() => _autoClipboard = v),
+                  value: settings.autoClipboard,
+                  onChanged: settings.setAutoClipboard,
                 ),
               ],
             ),
@@ -197,7 +197,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _RowTile(
                   icon: Icons.info_outline_rounded,
                   title: '版本',
-                  subtitle: '0.3.0 (build 3)',
+                  subtitle: '0.4.0 (build 4)',
                 ),
                 _Divider(color: p.border),
                 _RowTile(

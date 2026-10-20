@@ -12,6 +12,8 @@ class AppSettings extends ChangeNotifier {
   AppSettings(this._prefs) {
     _themeMode = _parseThemeMode(_prefs.getString(_kThemeMode));
     _bgType = _parseBgType(_prefs.getString(_kBgType));
+    _autoClipboard = _prefs.getBool(_kAutoClipboard) ?? true;
+    _haptic = _prefs.getBool(_kHaptic) ?? true;
     final path = _prefs.getString(_kBgPath);
     if (path != null && File(path).existsSync()) {
       _bgPath = path;
@@ -24,18 +26,29 @@ class AppSettings extends ChangeNotifier {
   static const _kThemeMode = 'theme_mode';
   static const _kBgType = 'bg_type';
   static const _kBgPath = 'bg_path';
+  static const _kAutoClipboard = 'auto_clipboard';
+  static const _kHaptic = 'haptic';
 
   final SharedPreferences _prefs;
 
   ThemeMode _themeMode = ThemeMode.system;
   BackgroundType _bgType = BackgroundType.none;
   String? _bgPath;
+  bool _autoClipboard = true;
+  bool _haptic = true;
   bool _busy = false;
   String? _lastError;
 
   ThemeMode get themeMode => _themeMode;
   BackgroundType get bgType => _bgType;
   String? get bgPath => _bgPath;
+
+  /// 回到前台时自动读取剪贴板里的分享链接（只填入输入框，不自动解析）
+  bool get autoClipboard => _autoClipboard;
+
+  /// 切换 tab / 保存成功时的轻触觉反馈
+  bool get haptic => _haptic;
+
   bool get busy => _busy;
   String? get lastError => _lastError;
 
@@ -65,6 +78,20 @@ class AppSettings extends ChangeNotifier {
     if (_themeMode == mode) return;
     _themeMode = mode;
     await _prefs.setString(_kThemeMode, mode.name);
+    notifyListeners();
+  }
+
+  Future<void> setAutoClipboard(bool value) async {
+    if (_autoClipboard == value) return;
+    _autoClipboard = value;
+    await _prefs.setBool(_kAutoClipboard, value);
+    notifyListeners();
+  }
+
+  Future<void> setHaptic(bool value) async {
+    if (_haptic == value) return;
+    _haptic = value;
+    await _prefs.setBool(_kHaptic, value);
     notifyListeners();
   }
 

@@ -1,6 +1,7 @@
 package com.xhjoyb.videosaver
 
 import android.content.ContentValues
+import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -22,6 +23,7 @@ class MainActivity : FlutterActivity() {
                     "saveVideo" -> handleSave(call, result, isImage = false)
                     "saveImage" -> handleSave(call, result, isImage = true)
                     "isSupported" -> result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                    "openMedia" -> handleOpen(call, result)
                     else -> result.notImplemented()
                 }
             }
@@ -39,6 +41,30 @@ class MainActivity : FlutterActivity() {
             result.success(saveToGallery(File(path), name, mime, isImage))
         } catch (e: Exception) {
             result.error("save_failed", e.message, null)
+        }
+    }
+
+    /**
+     * 用系统查看器打开刚保存的 content:// 媒体，供「去相册看看」使用。
+     * 找不到可用应用时返回 false，由 Flutter 侧提示。
+     */
+    private fun handleOpen(call: MethodCall, result: MethodChannel.Result) {
+        val uriString = call.argument<String>("uri")
+        if (uriString.isNullOrBlank()) {
+            result.success(false)
+            return
+        }
+        try {
+            val uri = Uri.parse(uriString)
+            val mime = contentResolver.getType(uri) ?: "*/*"
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, mime)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(intent)
+            result.success(true)
+        } catch (e: Exception) {
+            result.success(false)
         }
     }
 

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 
+import '../state/app_settings.dart';
 import '../theme/app_palette.dart';
 
 /// 单个 Tab：常态图标 + 激活图标 + 文字
@@ -62,6 +63,7 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar>
   double _slot = 1;
   bool _dragging = false;
   bool _syncing = false;
+  bool _hapticEnabled = true;
 
   @override
   void initState() {
@@ -162,7 +164,7 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar>
 
     if (target != widget.index) {
       _syncing = true;
-      HapticFeedback.selectionClick();
+      if (_hapticEnabled) HapticFeedback.selectionClick();
       widget.onChanged(target);
     }
   }
@@ -178,6 +180,7 @@ class _LiquidGlassTabBarState extends State<LiquidGlassTabBar>
   Widget build(BuildContext context) {
     final p = context.palette;
     final isDark = p.isDark;
+    _hapticEnabled = AppSettingsScope.of(context).haptic;
 
     final shellGradient = isDark
         ? [
@@ -304,6 +307,7 @@ class _GlassTabState extends State<_GlassTab> {
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
+    final haptic = AppSettingsScope.of(context).haptic;
     final selected = widget.selected;
     final color = selected ? p.accent : p.faint;
 
@@ -313,7 +317,7 @@ class _GlassTabState extends State<_GlassTab> {
       onTapUp: (_) => _setPressed(false),
       onTapCancel: () => _setPressed(false),
       onTap: () {
-        HapticFeedback.selectionClick();
+        if (haptic) HapticFeedback.selectionClick();
         widget.onTap();
       },
       child: AnimatedOpacity(

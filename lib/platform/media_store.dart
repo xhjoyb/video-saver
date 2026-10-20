@@ -45,4 +45,16 @@ class MediaStore {
       return false;
     }
   }
+
+  /// 用系统查看器打开刚保存的媒体（相册 / 视频播放器）
+  static Future<bool> openMedia(String uri) async {
+    try {
+      final ok = await _channel.invokeMethod<bool>('openMedia', {'uri': uri});
+      return ok ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
 }

@@ -6,9 +6,11 @@ import '../app/app_events.dart';
 import '../download/download_service.dart';
 import '../history/history_item.dart';
 import '../history/history_store.dart';
+import '../parser/douyin_parser.dart';
 import '../parser/parse_controller.dart';
 import '../parser/parse_result.dart';
 import '../platform/media_store.dart';
+import '../state/app_settings.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_card.dart';
@@ -23,7 +25,7 @@ class ParseScreen extends StatefulWidget {
   State<ParseScreen> createState() => _ParseScreenState();
 }
 
-class _ParseScreenState extends State<ParseScreen> {
+class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
   final TextEditingController _linkController = TextEditingController();
   final ParseController _parse = ParseController();
   bool _downloading = false;
@@ -31,10 +33,13 @@ class _ParseScreenState extends State<ParseScreen> {
   String? _lastRecordedId;
   final Set<int> _selectedImages = <int>{};
   int _qualityIndex = 0;
+  String? _lastClipboardText;
+  bool _seenFirstResume = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _parse.addListener(_onParseChanged);
     AppEvents.pendingParse.addListener(_onPendingParse);
     // 预热 WebView，缩短首次解析等待并提前拿到 cookie
@@ -84,6 +89,7 @@ class _ParseScreenState extends State<ParseScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _parse.removeListener(_onParseChanged);
     AppEvents.pendingParse.removeListener(_onPendingParse);
     _parse.dispose();
@@ -95,6 +101,66 @@ class _ParseScreenState extends State<ParseScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
     );
+  }
+
+  /// 保存成功提示：带「去相册看看」，点击用系统查看器打开该文件
+  void _toastSaved(String message, String? uri) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 5),
+        action: uri == null
+            ? null
+            : SnackBarAction(
+                label: '去相册看看',
+                onPressed: () async {
+                  final ok = await MediaStore.openMedia(uri);
+                  if (!ok && mounted) _toast('没有找到能打开该文件的相册或播放器');
+                },
+              ),
+      ),
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    _maybeFillFromClipboard();
+  }
+
+  /// 从后台切回前台时读剪贴板：只识别抖音链接/纯 ID，且不覆盖已有输入
+  Future<void> _maybeFillFromClipboard() async {
+    // 冷启动首次进入不抢占剪贴板
+    if (!_seenFirstResume) {
+      _seenFirstResume = true;
+      return;
+    }
+    final settings = AppSettingsScope.of(context);
+    if (!settings.autoClipboard || _parse.busy) return;
+    if (_linkController.text.trim().isNotEmpty) return;
+
+    String text;
+    try {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      text = (data?.text ?? '').trim();
+    } catch (_) {
+      return;
+    }
+    if (text.isEmpty || text == _lastClipboardText) return;
+
+    final hasLink = DouyinParser.extractUrl(text) != null;
+    final isPureId = RegExp(r'^\d{15,20}$').hasMatch(text);
+    if (!hasLink && !isPureId) return;
+
+    _lastClipboardText = text;
+    if (!mounted) return;
+    setState(() {
+      _linkController.text = text;
+      _linkController.selection = TextSelection.collapsed(offset: text.length);
+    });
+    _toast('已从剪贴板识别到链接，点「开始解析」即可');
   }
 
   Future<void> _paste() async {
@@ -148,7 +214,7 @@ class _ParseScreenState extends State<ParseScreen> {
           result.awemeId,
           'Movies/VideoSaver/${result.fileName}',
         );
-        _toast('已保存到相册：Movies/VideoSaver');
+        _toastSaved('已保存到相册：Movies/VideoSaver', saved);
         try {
           await file.delete();
         } catch (_) {}
@@ -171,6 +237,7 @@ class _ParseScreenState extends State<ParseScreen> {
     });
     final indices = _selectedImages.toList()..sort();
     var done = 0;
+    String? firstUri;
     try {
       for (final i in indices) {
         final url = result.imageUrls[i];
@@ -185,6 +252,7 @@ class _ParseScreenState extends State<ParseScreen> {
         if (saved == null) {
           throw StateError('第 ${i + 1} 张写入相册失败');
         }
+        firstUri ??= saved;
         try {
           await file.delete();
         } catch (_) {}
@@ -198,7 +266,7 @@ class _ParseScreenState extends State<ParseScreen> {
         result.awemeId,
         'Pictures/VideoSaver（${indices.length} 张）',
       );
-      _toast('已保存 ${indices.length} 张图片到相册');
+      _toastSaved('已保存 ${indices.length} 张图片到相册', firstUri);
     } catch (e) {
       if (mounted) _toast('图片下载失败：$e');
     } finally {
