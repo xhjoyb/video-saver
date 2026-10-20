@@ -27,6 +27,7 @@ class _ParseScreenState extends State<ParseScreen> {
   bool _downloading = false;
   double _progress = 0;
   String? _lastRecordedId;
+  final Set<int> _selectedImages = <int>{};
 
   @override
   void initState() {
@@ -46,6 +47,9 @@ class _ParseScreenState extends State<ParseScreen> {
         _parse.stage == ParseStage.done &&
         _lastRecordedId != result.awemeId) {
       _lastRecordedId = result.awemeId;
+      _selectedImages
+        ..clear()
+        ..addAll(List<int>.generate(result.imageUrls.length, (i) => i));
       HistoryStore.instance.add(
         HistoryItem(
           awemeId: result.awemeId,
@@ -145,9 +149,10 @@ class _ParseScreenState extends State<ParseScreen> {
       _downloading = true;
       _progress = 0;
     });
+    final indices = _selectedImages.toList()..sort();
     var done = 0;
     try {
-      for (var i = 0; i < result.imageUrls.length; i++) {
+      for (final i in indices) {
         final url = result.imageUrls[i];
         final index = (i + 1).toString().padLeft(2, '0');
         final file = await DownloadService.download(url, '${result.awemeId}_$index.tmp');
@@ -165,20 +170,83 @@ class _ParseScreenState extends State<ParseScreen> {
         } catch (_) {}
         done++;
         if (mounted) {
-          setState(() => _progress = done / result.imageUrls.length);
+          setState(() => _progress = done / indices.length);
         }
       }
       if (!mounted) return;
       await HistoryStore.instance.markDownloaded(
         result.awemeId,
-        'Pictures/VideoSaver（${result.imageUrls.length} 张）',
+        'Pictures/VideoSaver（${indices.length} 张）',
       );
-      _toast('已保存 ${result.imageUrls.length} 张图片到相册');
+      _toast('已保存 ${indices.length} 张图片到相册');
     } catch (e) {
       if (mounted) _toast('图片下载失败：$e');
     } finally {
       if (mounted) setState(() => _downloading = false);
     }
+  }
+
+  Widget _buildImageGrid(BuildContext context, ParseResult result) {
+    final p = context.palette;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          mainAxisSpacing: 6,
+          crossAxisSpacing: 6,
+        ),
+        itemCount: result.imageUrls.length,
+        itemBuilder: (context, i) {
+          final selected = _selectedImages.contains(i);
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                if (selected) {
+                  _selectedImages.remove(i);
+                } else {
+                  _selectedImages.add(i);
+                }
+              });
+            },
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    result.imageUrls[i],
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(color: p.cardAlt),
+                  ),
+                ),
+                if (selected)
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: p.accent, width: 2),
+                      color: p.accent.withOpacity(0.16),
+                    ),
+                  ),
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Icon(
+                    selected
+                        ? Icons.check_circle_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    size: 18,
+                    color: selected ? p.accent : Colors.white70,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -308,20 +376,23 @@ class _ParseScreenState extends State<ParseScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-            child: AspectRatio(
-              aspectRatio: 16 / 9,
-              child: Image.network(
-                result.coverUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  color: p.cardAlt,
-                  child: Icon(Icons.movie_outlined, color: p.faint, size: 36),
+          if (result.isImages)
+            _buildImageGrid(context, result)
+          else
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Image.network(
+                  result.coverUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    color: p.cardAlt,
+                    child: Icon(Icons.movie_outlined, color: p.faint, size: 36),
+                  ),
                 ),
               ),
             ),
-          ),
           Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
@@ -349,6 +420,38 @@ class _ParseScreenState extends State<ParseScreen> {
                       ),
                   ],
                 ),
+                if (result.isImages) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Text(
+                        '已选 ${_selectedImages.length}/${result.imageUrls.length}',
+                        style: AppText.label(context),
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            if (_selectedImages.length == result.imageUrls.length) {
+                              _selectedImages.clear();
+                            } else {
+                              _selectedImages
+                                ..clear()
+                                ..addAll(List<int>.generate(
+                                  result.imageUrls.length,
+                                  (i) => i,
+                                ));
+                            }
+                          });
+                        },
+                        child: Text(
+                          _selectedImages.length == result.imageUrls.length ? '清空' : '全选',
+                          style: TextStyle(fontSize: 11.5, color: p.accent),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 14),
                 if (_downloading) ...[
                   ClipRRect(
@@ -372,11 +475,11 @@ class _ParseScreenState extends State<ParseScreen> {
                   )
                 else
                   PrimaryButton(
-                    label: '保存全部图片（${result.imageUrls.length}）',
+                    label: '保存选中（${_selectedImages.length}）',
                     icon: Icons.photo_library_rounded,
                     height: 42,
                     expand: true,
-                    onPressed: _downloadImages,
+                    onPressed: _selectedImages.isEmpty ? null : _downloadImages,
                   ),
               ],
             ),
