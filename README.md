@@ -111,7 +111,7 @@ App 内还保留一个开发者页面：**设置 → 开发者 → 解析探针*
 |---|---|---|
 | 解析偶尔慢（5–8s） | 隐藏 WebView 需加载完整页面并等 bdms.js 就绪 | 页面就绪后 1.5s 防抖再 fetch，后续可做预热 |
 | `ERR_UNKNOWN_URL_SCHEME` | 移动 UA 触发抖音唤起 App | 已改 PC UA + 拦截非 http 导航 |
-| 首版只支持视频，图集未落下载 | 图集字段已解析但下载逻辑只处理 mp4 | 后续补 images 下载 |
+| 首版只支持视频，图集未落下载 | 图集字段已解析但下载逻辑只处理 mp4 | 已支持图集，图片按真实格式（jpg/png/webp）落 `Pictures/VideoSaver` |
 | CI 偶发 Release 发布失败 | runner 到 api.github.com 偶发超时 | Publish 步骤已加 5 次退避重试 |
 
 ## 路线图（主线）

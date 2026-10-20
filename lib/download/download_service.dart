@@ -10,6 +10,24 @@ class DownloadService {
       'Mozilla/5.0 (Linux; Android 14; PGT-AN20 Build/HONORPGT-AN20) '
       'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
+  static Future<String> detectImageExt(File file) async {
+    try {
+      final raf = await file.open();
+      final head = await raf.read(12);
+      await raf.close();
+      if (head.length >= 3 && head[0] == 0xFF && head[1] == 0xD8) return 'jpg';
+      if (head.length >= 8 && head[0] == 0x89 && head[1] == 0x50) return 'png';
+      if (head.length >= 12 &&
+          String.fromCharCodes(head.sublist(0, 4)) == 'RIFF' &&
+          String.fromCharCodes(head.sublist(8, 12)) == 'WEBP') {
+        return 'webp';
+      }
+      return 'jpg';
+    } catch (_) {
+      return 'jpg';
+    }
+  }
+
   static Future<File> download(
     String url,
     String fileName, {

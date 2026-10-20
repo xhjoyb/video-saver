@@ -74,7 +74,12 @@ class DouyinParser {
         var v = a.video || {};
         var play = (v.play_addr && v.play_addr.url_list) || [];
         var cover = ((v.cover && v.cover.url_list) || [''])[0] || '';
-        var imgs = (a.images || []).map(function (it) { return ((it.url_list || [''])[0]); });
+        var imgs = [];
+        if (a.images && a.images.length) {
+          imgs = a.images.map(function (it) { return ((it.url_list || [''])[0]); });
+        } else if (a.image_post_info && a.image_post_info.images && a.image_post_info.images.length) {
+          imgs = a.image_post_info.images.map(function (it) { return ((it.url_list || [''])[0]); });
+        }
         window.__dyResult = JSON.stringify({
           id: a.aweme_id || '',
           desc: a.desc || '',

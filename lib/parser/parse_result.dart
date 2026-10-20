@@ -20,8 +20,8 @@ class ParseResult {
   final List<String> videoUrls;
   final List<String> imageUrls;
 
-  bool get isVideo => videoUrls.isNotEmpty;
-  bool get isImages => videoUrls.isEmpty && imageUrls.isNotEmpty;
+  bool get isImages => imageUrls.isNotEmpty;
+  bool get isVideo => !isImages && videoUrls.isNotEmpty;
 
   String get durationText {
     final total = (durationMs / 1000).round();

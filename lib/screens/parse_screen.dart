@@ -149,14 +149,20 @@ class _ParseScreenState extends State<ParseScreen> {
     try {
       for (var i = 0; i < result.imageUrls.length; i++) {
         final url = result.imageUrls[i];
-        final name = '${result.awemeId}_${(i + 1).toString().padLeft(2, '0')}.jpg';
-        final file = await DownloadService.download(url, name);
-        final saved = await MediaStore.saveImage(file, name);
-        if (saved != null) {
-          try {
-            await file.delete();
-          } catch (_) {}
+        final index = (i + 1).toString().padLeft(2, '0');
+        final file = await DownloadService.download(url, '${result.awemeId}_$index.tmp');
+        final ext = await DownloadService.detectImageExt(file);
+        final name = '${result.awemeId}_$index.$ext';
+        final mime = ext == 'png'
+            ? 'image/png'
+            : (ext == 'webp' ? 'image/webp' : 'image/jpeg');
+        final saved = await MediaStore.saveImage(file, name, mime: mime);
+        if (saved == null) {
+          throw StateError('第 ${i + 1} 张写入相册失败');
         }
+        try {
+          await file.delete();
+        } catch (_) {}
         done++;
         if (mounted) {
           setState(() => _progress = done / result.imageUrls.length);

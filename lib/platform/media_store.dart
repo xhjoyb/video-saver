@@ -23,12 +23,12 @@ class MediaStore {
     }
   }
 
-  static Future<String?> saveImage(File file, String displayName) async {
+  static Future<String?> saveImage(File file, String displayName, {String mime = 'image/jpeg'}) async {
     try {
       return await _channel.invokeMethod<String>('saveImage', {
         'path': file.path,
         'name': displayName,
-        'mime': 'image/jpeg',
+        'mime': mime,
       });
     } on PlatformException {
       return null;
