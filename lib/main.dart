@@ -13,6 +13,7 @@ import 'state/app_settings.dart';
 import 'theme/app_palette.dart';
 import 'theme/app_theme.dart';
 import 'widgets/app_background.dart';
+import 'widgets/liquid_nav_bar.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -95,10 +96,22 @@ class _RootShellState extends State<RootShell> {
     SettingsScreen(),
   ];
 
-  static const _items = <_NavMeta>[
-    _NavMeta(icon: Icons.auto_awesome_rounded, label: '解析'),
-    _NavMeta(icon: Icons.history_rounded, label: '记录'),
-    _NavMeta(icon: Icons.tune_rounded, label: '设置'),
+  static const _items = <LiquidNavItem>[
+    LiquidNavItem(
+      icon: Icons.auto_awesome_outlined,
+      activeIcon: Icons.auto_awesome_rounded,
+      label: '解析',
+    ),
+    LiquidNavItem(
+      icon: Icons.video_library_outlined,
+      activeIcon: Icons.video_library_rounded,
+      label: '记录',
+    ),
+    LiquidNavItem(
+      icon: Icons.settings_outlined,
+      activeIcon: Icons.settings_rounded,
+      label: '设置',
+    ),
   ];
 
   @override
@@ -134,17 +147,10 @@ class _RootShellState extends State<RootShell> {
                 ),
               ],
             ),
-            child: Row(
-              children: [
-                for (int i = 0; i < _items.length; i++)
-                  Expanded(
-                    child: _NavItem(
-                      meta: _items[i],
-                      selected: _index == i,
-                      onTap: () => AppEvents.tabIndex.value = i,
-                    ),
-                  ),
-              ],
+            child: LiquidNavBar(
+              items: _items,
+              index: _index,
+              onChanged: (i) => AppEvents.tabIndex.value = i,
             ),
           ),
         ),
@@ -153,55 +159,5 @@ class _RootShellState extends State<RootShell> {
   }
 }
 
-class _NavMeta {
-  const _NavMeta({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-}
-
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.meta,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final _NavMeta meta;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.palette;
-    final color = selected ? p.accent : p.faint;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOut,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? p.accent.withOpacity(0.10) : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(meta.icon, size: 19, color: color),
-            const SizedBox(height: 3),
-            Text(
-              meta.label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// 旧的 _NavMeta / _NavItem 已由 widgets/liquid_nav_bar.dart 中的
+// LiquidNavItem / LiquidNavBar 取代。
