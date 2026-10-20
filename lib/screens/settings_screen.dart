@@ -173,13 +173,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               children: [
                 _SwitchTile(
-                  icon: Icons.vibration_rounded,
-                  title: '震动反馈',
-                  value: settings.haptic,
-                  onChanged: settings.setHaptic,
-                ),
-                _Divider(color: p.border),
-                _SwitchTile(
                   icon: Icons.content_paste_go_rounded,
                   title: '自动识别剪贴板',
                   value: settings.autoClipboard,
