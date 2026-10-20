@@ -10,6 +10,7 @@ import '../history/history_store.dart';
 import '../parser/bilibili_parser.dart';
 import '../parser/douyin_parser.dart';
 import '../parser/kuaishou_parser.dart';
+import '../parser/xiaohongshu_parser.dart';
 import '../parser/parse_controller.dart';
 import '../parser/parse_result.dart';
 import '../platform/media_store.dart';
@@ -198,16 +199,18 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
       fileName: result.fileName,
       url: quality.url,
       platform: result.platform,
-      referer: result.platform == 'bilibili'
-          ? 'https://www.bilibili.com/'
-          : result.platform == 'kuaishou'
-              ? KuaishouParser.referer
-              : 'https://www.douyin.com/',
-      userAgent: result.platform == 'bilibili'
-          ? BilibiliParser.userAgent
-          : result.platform == 'kuaishou'
-              ? KuaishouParser.userAgent
-              : null,
+      referer: switch (result.platform) {
+        'bilibili' => 'https://www.bilibili.com/',
+        'kuaishou' => KuaishouParser.referer,
+        'xiaohongshu' => XiaohongshuParser.referer,
+        _ => 'https://www.douyin.com/',
+      },
+      userAgent: switch (result.platform) {
+        'bilibili' => BilibiliParser.userAgent,
+        'kuaishou' => KuaishouParser.userAgent,
+        'xiaohongshu' => XiaohongshuParser.userAgent,
+        _ => null,
+      },
       awemeId: result.awemeId,
     );
     _toast('已加入下载队列');
@@ -699,7 +702,7 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
           children: [
             Text('支持平台', style: AppText.section(context)),
             const Spacer(),
-            Text('已接入 3 个平台', style: AppText.label(context)),
+            Text('已接入 4 个平台', style: AppText.label(context)),
           ],
         ),
         const SizedBox(height: 14),
@@ -717,10 +720,16 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
                 name: '快手',
                 icon: Icons.videocam_rounded,
                 active: true,
+              ),
+            ),
+            Expanded(
+              child: PlatformItem(
+                name: '小红书',
+                icon: Icons.bookmark_rounded,
+                active: true,
                 badge: 'NEW',
               ),
             ),
-            Expanded(child: PlatformItem(name: '小红书', icon: Icons.bookmark_rounded)),
             Expanded(
               child: PlatformItem(
                 name: 'B 站',

@@ -8,6 +8,7 @@ import 'bilibili_parser.dart';
 import 'douyin_parser.dart';
 import 'kuaishou_parser.dart';
 import 'parse_result.dart';
+import 'xiaohongshu_parser.dart';
 
 enum ParseStage { idle, resolving, loading, parsing, done, error }
 
@@ -29,7 +30,8 @@ class ParseController extends ChangeNotifier {
             return NavigationDecision.navigate;
           },
           onPageFinished: (url) {
-            if (_stage != ParseStage.loading) return;
+            // 只有抖音走「页面内 fetch + 轮询」；小红书由自身流程轮询
+            if (_stage != ParseStage.loading || _mode != 'douyin') return;
             _scheduleProbe();
           },
           onWebResourceError: (e) {
@@ -51,6 +53,7 @@ class ParseController extends ChangeNotifier {
   Timer? _timeout;
   bool _probeStarted = false;
   bool _warmed = false;
+  String _mode = 'douyin';
 
   /// 预热：提前打开 douyin.com 让 cookie / 签名就绪，降低首次解析被拦与耗时
   Future<void> warmUp() async {
@@ -76,10 +79,17 @@ class ParseController extends ChangeNotifier {
     _debounce?.cancel();
     _timeout?.cancel();
     _probeStarted = false;
+    _mode = 'douyin';
     _result = null;
     _error = null;
     _stage = ParseStage.resolving;
     notifyListeners();
+
+    // 小红书：网页 SSR 已下线，用隐藏 WebView 渲染后取 __INITIAL_STATE__
+    if (XiaohongshuParser.looksLike(input)) {
+      await _parseXiaohongshu(input);
+      return;
+    }
 
     // B 站走纯 HTTP（wbi 签名），不需要 WebView
     if (BilibiliParser.looksLike(input)) {
@@ -232,6 +242,62 @@ class ParseController extends ChangeNotifier {
           text.startsWith('Exception: ') ? text.substring(11) : text;
       _fail(message.startsWith('快手') ? message : '快手解析失败：$message');
     }
+  }
+
+  Future<void> _parseXiaohongshu(String input) async {
+    _mode = 'xhs';
+    _stage = ParseStage.loading;
+    notifyListeners();
+
+    final pageUrl = await XiaohongshuParser.resolvePageUrl(input);
+    if (pageUrl == null) {
+      _fail('没有识别到小红书笔记链接');
+      return;
+    }
+    final noteId = XiaohongshuParser.extractNoteId(pageUrl) ??
+        XiaohongshuParser.extractNoteId(input);
+    if (noteId == null) {
+      _fail('没有识别到小红书笔记 ID');
+      return;
+    }
+
+    _timeout = Timer(const Duration(seconds: 40), () {
+      if (busy) _fail('解析超时，请检查网络后重试');
+    });
+
+    try {
+      await web.loadRequest(Uri.parse(pageUrl));
+    } catch (e) {
+      _fail('页面加载失败：$e');
+      return;
+    }
+
+    _stage = ParseStage.parsing;
+    notifyListeners();
+
+    // 页面 JS 拉数据需要时间，按 500ms 轮询最多 12 秒
+    for (var attempt = 0; attempt < 24; attempt++) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (_stage != ParseStage.parsing) return;
+      try {
+        final raw = await web.runJavaScriptReturningResult(
+          XiaohongshuParser.extractJs,
+        );
+        final data = await XiaohongshuParser.decodePayload(raw.toString());
+        if (data == null) continue;
+        final result = XiaohongshuParser.buildResult(data, noteId);
+        if (result.videoUrls.isEmpty && result.imageUrls.isEmpty) continue;
+        _result = result;
+        _stage = ParseStage.done;
+        _timeout?.cancel();
+        notifyListeners();
+        return;
+      } catch (_) {
+        // 单次读取失败继续轮询
+      }
+    }
+
+    _fail('没有拿到笔记内容（可能需要登录或笔记已删除）');
   }
 
   void _fail(String message) {
