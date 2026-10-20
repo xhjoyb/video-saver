@@ -111,21 +111,18 @@ jobs:
         run: |
           TAG="flutter-${GITHUB_RUN_NUMBER}"
           APK=$(ls build/app/outputs/flutter-apk/*.apk | head -1)
-          # 取上一版 release tag，生成「自上一版起」的变更清单
+          # 取上一版 release tag，用 compare API 生成「自上一版起」的变更（不依赖本地 tag）
           PREV=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || true)
-          RANGE=""
-          if [ -n "$PREV" ] && git rev-parse -q --verify "refs/tags/$PREV" >/dev/null 2>&1; then
-            RANGE="$PREV..HEAD"
-          fi
           CHANGES=""
-          if [ -n "$RANGE" ]; then
-            CHANGES=$(git log --no-merges --pretty=format:'- %s' "$RANGE" 2>/dev/null || true)
+          if [ -n "$PREV" ]; then
+            CHANGES=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${PREV}...${GITHUB_SHA}" \
+              --jq '.commits[] | .commit.message | split("\n")[0] | "- " + .' 2>/dev/null || true)
           fi
           if [ -n "$CHANGES" ]; then
             SCOPE="自 \`$PREV\` 起"
           else
             CHANGES=$(git log --no-merges --pretty=format:'- %s' -15 HEAD)
-            SCOPE="最近 15 条提交"
+            SCOPE="最近 15 条提交（compare API 不可用时的兜底）"
           fi
           SIZE=$(stat -c%s "$APK")
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
