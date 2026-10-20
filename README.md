@@ -97,7 +97,9 @@
 ## 构建与交付
 
 push 到 `main` → Actions 构建 → Release `flutter-<run_number>`（只保留最新一版）。
-仅改文档（`**.md` / `docs/**`）不会触发构建（workflow 有 `paths-ignore`）；需要出包时用 `workflow_dispatch` 手动触发。
+仅改文档（`**.md` / `docs/**`）或 CI 配置（`.github/**`）不会触发构建（workflow 有 `paths-ignore`）；需要出包时用 `workflow_dispatch` 手动触发。
+
+每次 Release 的说明由 workflow 自动生成：取**上一版 Release tag 到本次 commit** 之间的提交标题（`git log --no-merges`），再附构建信息表（commit / run / APK 字节数 / SHA-256），使用 `--notes-file` 发布。首次发布（无上一版）回退为最近 15 条提交。
 
 ```sh
 # 查看最新 tag（gh api 默认顺序不是时间序）
