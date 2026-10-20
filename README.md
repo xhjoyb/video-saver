@@ -6,7 +6,7 @@
 - 技术栈：Flutter 3.24.5 + Material 3，Kotlin 原生壳
 - Android：minSdk 26 / targetSdk 34，仅 arm64 出包
 - 构建：GitHub Actions 云端构建，Release 附 APK
-- 当前基线：**run `flutter-20`**（解析 + 下载 + 相册落盘全部验证通过）
+- 当前基线：**run `flutter-22`**（解析 + 下载 + 相册 + 解析历史全部验证通过），tag `v0.3.0`
 
 ## 当前能力
 
@@ -18,7 +18,7 @@
 | 保存到相册 `Movies/VideoSaver`（MediaStore） | ✅ |
 | 日间 / 夜间主题（跟随系统 / 手动） | ✅ |
 | 自定义背景（相册图片 / ≤30s 视频静音循环） | ✅ |
-| 解析历史 | ⏳ 待做 |
+| 解析历史（本地持久化 + 记录页） | ✅ |
 | 分享接收（ACTION_SEND 已声明，Dart 侧未接） | ⏳ 待做 |
 | 图集（images）解析下载 | ⏳ 返回数据已带，暂未落地下载 |
 | 其它平台（快手 / 小红书 / B 站） | ⏳ 仅 UI 占位 |
@@ -85,10 +85,11 @@ gh api 'repos/xhjoyb/video-saver/releases?per_page=100' --jq 'sort_by(.created_a
 su -c 'cp /sdcard/Download/app.apk /data/local/tmp/v.apk && pm install -r /data/local/tmp/v.apk'
 ```
 
-> 仓库是 private，**直接打开 release 页面未登录会 404**，需要先登录 `xhjoyb`。
+> 仓库已设为 **public**，可直接下载 Release 资产：
+> `https://github.com/xhjoyb/video-saver/releases/download/flutter-22/app-release.apk`
 
-签名 keystore 已固化为仓库 Secret `ANDROID_KEYSTORE_B64`（PKCS12，alias `videosaver`），
-跨版本覆盖安装指纹稳定 `763a3827`。
+签名 keystore 固化为仓库 Secret `ANDROID_KEYSTORE_B64`，密码在 `ANDROID_KS_PASS`，
+workflow 内不出现明文；跨版本覆盖安装指纹稳定 `763a3827`。
 
 ## 调试工具（`tools/`）
 
@@ -112,16 +113,15 @@ App 内还保留一个开发者页面：**设置 → 开发者 → 解析探针*
 | 解析偶尔慢（5–8s） | 隐藏 WebView 需加载完整页面并等 bdms.js 就绪 | 页面就绪后 1.5s 防抖再 fetch，后续可做预热 |
 | `ERR_UNKNOWN_URL_SCHEME` | 移动 UA 触发抖音唤起 App | 已改 PC UA + 拦截非 http 导航 |
 | 首版只支持视频，图集未落下载 | 图集字段已解析但下载逻辑只处理 mp4 | 后续补 images 下载 |
-| App 内版本号一直是 0.2.0 | pubspec 未随构建递增 | 下次功能更新统一升 0.3.0 |
 | CI 偶发 Release 发布失败 | runner 到 api.github.com 偶发超时 | Publish 步骤已加 5 次退避重试 |
 
 ## 路线图
 
-1. 解析历史（本地持久化 + 记录页接真实数据）
-2. 分享接收（抖音「分享 → 更多」直接带链接进 App）
-3. 图集下载
-4. 多平台（快手 / 小红书 / B 站，`VideoParser` 抽象已预留）
-5. 解析结果页支持清晰度选择（`play_addr.url_list` 已含多档码率）
+1. 分享接收（抖音「分享 → 更多」直接带链接进 App）
+2. 图集下载
+3. 多平台（快手 / 小红书 / B 站，`VideoParser` 抽象已预留）
+4. 解析结果页支持清晰度选择（`play_addr.url_list` 已含多档码率）
+5. 解析预热（提前加载 WebView，降低首次解析等待）
 
 ## 备注
 

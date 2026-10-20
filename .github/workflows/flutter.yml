@@ -51,12 +51,12 @@ jobs:
               -storetype PKCS12 \
               -alias videosaver \
               -keyalg RSA -keysize 2048 -validity 10950 \
-              -storepass videosaver2025 -keypass videosaver2025 \
+              -storepass "${{ secrets.ANDROID_KS_PASS }}" -keypass "${{ secrets.ANDROID_KS_PASS }}" \
               -dname "CN=VideoSaver, OU=Dev, O=xhjoyb, L=CN, ST=CN, C=CN"
             echo "keystore generated"
           fi
           ls -l keystore/release.jks
-          keytool -list -v -keystore keystore/release.jks -storepass videosaver2025 2>/dev/null \
+          keytool -list -v -keystore keystore/release.jks -storepass "${{ secrets.ANDROID_KS_PASS }}" 2>/dev/null \
             | grep -E "SHA1:|SHA256:" | head -2
 
       - name: Flutter version
@@ -74,9 +74,9 @@ jobs:
         timeout-minutes: 30
         env:
           KS_FILE: ${{ github.workspace }}/keystore/release.jks
-          KS_PASS: videosaver2025
+          KS_PASS: ${{ secrets.ANDROID_KS_PASS }}
           KS_ALIAS: videosaver
-          KS_KEY_PASS: videosaver2025
+          KS_KEY_PASS: ${{ secrets.ANDROID_KS_PASS }}
         run: |
           timeout -k 20 1500 flutter build apk --release --target-platform android-arm64 || {
             echo "::error::flutter build apk 失败或超时";
