@@ -45,25 +45,25 @@ class _PrimaryButtonState extends State<PrimaryButton> {
           borderRadius: BorderRadius.circular(12),
         ),
         child: widget.loading
-            ? const SizedBox(
+            ? SizedBox(
                 width: 17,
                 height: 17,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation(Colors.white),
+                  valueColor: AlwaysStoppedAnimation(p.onAccent),
                 ),
               )
             : Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (widget.icon != null) ...[
-                    Icon(widget.icon, size: 17, color: Colors.white),
+                    Icon(widget.icon, size: 17, color: p.onAccent),
                     const SizedBox(width: 6),
                   ],
                   Text(
                     widget.label,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: p.onAccent,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),

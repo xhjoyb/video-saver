@@ -271,7 +271,7 @@ class _ThemeOption extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              color: selected ? Colors.white : p.dim,
+              color: selected ? p.onAccent : p.dim,
             ),
           ),
         ),

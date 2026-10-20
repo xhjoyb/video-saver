@@ -50,9 +50,9 @@ ThemeData buildAppTheme(AppPalette p) {
   final scheme = ColorScheme(
     brightness: p.brightness,
     primary: p.accent,
-    onPrimary: Colors.white,
+    onPrimary: p.onAccent,
     secondary: p.accent2,
-    onSecondary: Colors.white,
+    onSecondary: p.onAccent,
     error: const Color(0xFFFF5A5A),
     onError: Colors.white,
     surface: p.card,

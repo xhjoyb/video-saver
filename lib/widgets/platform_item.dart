@@ -59,11 +59,11 @@ class PlatformItem extends StatelessWidget {
                     ),
                     child: Text(
                       badge!,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 8,
                         height: 1.2,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                        color: p.onAccent,
                       ),
                     ),
                   ),

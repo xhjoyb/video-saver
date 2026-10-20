@@ -16,6 +16,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     required this.faint,
     required this.accent,
     required this.accent2,
+    required this.onAccent,
     required this.scrim,
     required this.success,
     required this.navBar,
@@ -38,6 +39,10 @@ class AppPalette extends ThemeExtension<AppPalette> {
   final Color accent;
   final Color accent2;
 
+  /// 压在 accent 渐变色块上的前景色（文字/图标）：
+  /// 深色主题 accent 偏亮 → 用墨绿；浅色主题 accent 偏深 → 用白色。
+  final Color onAccent;
+
   /// 背景图/视频之上的遮罩，保证文字可读
   final Color scrim;
 
@@ -57,8 +62,9 @@ class AppPalette extends ThemeExtension<AppPalette> {
     text: Color(0xFFF2F3F7),
     dim: Color(0xFFA0A5B6),
     faint: Color(0xFF6D7284),
-    accent: Color(0xFFFF3B5C),
-    accent2: Color(0xFFFF7A45),
+    accent: Color(0xFF19E8BE),
+    accent2: Color(0xFF00C9A6),
+    onAccent: Color(0xFF04120F),
     scrim: Color(0x8C000000),
     success: Color(0xFF3DDC97),
     navBar: Color(0xF21A1A26),
@@ -75,8 +81,9 @@ class AppPalette extends ThemeExtension<AppPalette> {
     text: Color(0xFF14161C),
     dim: Color(0xFF5A6070),
     faint: Color(0xFF8D93A3),
-    accent: Color(0xFFF5324F),
-    accent2: Color(0xFFF26B3A),
+    accent: Color(0xFF008F76),
+    accent2: Color(0xFF00B394),
+    onAccent: Colors.white,
     scrim: Color(0x4DFFFFFF),
     success: Color(0xFF12A66A),
     navBar: Color(0xF7FFFFFF),
@@ -96,6 +103,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     Color? faint,
     Color? accent,
     Color? accent2,
+    Color? onAccent,
     Color? scrim,
     Color? success,
     Color? navBar,
@@ -113,6 +121,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
       faint: faint ?? this.faint,
       accent: accent ?? this.accent,
       accent2: accent2 ?? this.accent2,
+      onAccent: onAccent ?? this.onAccent,
       scrim: scrim ?? this.scrim,
       success: success ?? this.success,
       navBar: navBar ?? this.navBar,
@@ -136,6 +145,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
       faint: c(faint, other.faint),
       accent: c(accent, other.accent),
       accent2: c(accent2, other.accent2),
+      onAccent: c(onAccent, other.onAccent),
       scrim: c(scrim, other.scrim),
       success: c(success, other.success),
       navBar: c(navBar, other.navBar),
