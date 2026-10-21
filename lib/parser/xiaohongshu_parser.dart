@@ -166,6 +166,28 @@ class XiaohongshuParser {
 })()
 ''';
 
+  /// 浏览器特征伪装：小红书会检测 `navigator.webdriver` 等自动化特征，
+/// 在页面脚本执行前尽量抹掉（无法保证一定生效，属尽力而为）
+  static const String browserMaskJs = r'''
+(function () {
+  try {
+    Object.defineProperty(navigator, 'webdriver', { get: function () { return false; } });
+    if (!window.chrome) { window.chrome = {}; }
+    Object.defineProperty(navigator, 'languages', {
+      get: function () { return ['zh-CN', 'zh', 'en']; }
+    });
+    Object.defineProperty(navigator, 'plugins', {
+      get: function () { return [1, 2, 3, 4, 5]; }
+    });
+    if (!navigator.permissions || !navigator.permissions.query) {
+      navigator.permissions = {
+        query: function () { return Promise.resolve({ state: 'denied' }); }
+      };
+    }
+  } catch (e) {}
+})();
+''';
+
   /// 短链落地页兜底：从页面里找指向笔记页的链接（含 HTML 里的裸 URL）
   static const String redirectJs = r'''
 (function () {

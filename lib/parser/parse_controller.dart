@@ -34,6 +34,13 @@ class ParseController extends ChangeNotifier {
             if (_stage != ParseStage.loading || _mode != 'douyin') return;
             _scheduleProbe();
           },
+          onPageStarted: (url) {
+            // 小红书风控会检测自动化特征，页面一开始就注入伪装脚本
+            if (_mode != 'xhs') return;
+            web
+                .runJavaScript(XiaohongshuParser.browserMaskJs)
+                .catchError((Object _) {});
+          },
           onWebResourceError: (e) {
             if (_stage == ParseStage.loading && e.isForMainFrame == true) {
               _fail('页面加载失败：${e.description}');
@@ -283,6 +290,11 @@ class ParseController extends ChangeNotifier {
         // 撞登录墙时直接给出可操作提示，不再无意义轮询
         if (lastUrl.contains('/login') || lastUrl.contains('website-login')) {
           _fail('小红书需要登录：请到「设置 → 小红书登录」登录后重试');
+          return;
+        }
+        // 安全拦截：小红书判定 WebView 环境可疑，直接打回 404/sec_ 页
+        if (lastUrl.contains('/404') || lastUrl.contains('sec_')) {
+          _fail('小红书安全拦截（WebView 环境被识别），该平台暂不支持');
           return;
         }
         noteId = XiaohongshuParser.extractNoteId(lastUrl);
