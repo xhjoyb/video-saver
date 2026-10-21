@@ -702,7 +702,7 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
           children: [
             Text('支持平台', style: AppText.section(context)),
             const Spacer(),
-            Text('已接入 4 个平台', style: AppText.label(context)),
+            Text('已接入 3 个平台', style: AppText.label(context)),
           ],
         ),
         const SizedBox(height: 14),
@@ -726,8 +726,6 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
               child: PlatformItem(
                 name: '小红书',
                 icon: Icons.bookmark_rounded,
-                active: true,
-                badge: 'NEW',
               ),
             ),
             Expanded(
