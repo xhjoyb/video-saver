@@ -280,6 +280,11 @@ class ParseController extends ChangeNotifier {
       if (_stage != ParseStage.parsing) return;
       try {
         lastUrl = await web.currentUrl() ?? lastUrl;
+        // 撞登录墙时直接给出可操作提示，不再无意义轮询
+        if (lastUrl.contains('/login') || lastUrl.contains('website-login')) {
+          _fail('小红书需要登录：请到「设置 → 小红书登录」登录后重试');
+          return;
+        }
         noteId = XiaohongshuParser.extractNoteId(lastUrl);
         if (noteId != null) break;
 

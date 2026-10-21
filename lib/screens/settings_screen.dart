@@ -3,10 +3,12 @@ import 'package:flutter/services.dart';
 
 import '../dev/parse_probe_screen.dart';
 import '../download/download_queue.dart';
+import '../platform/xhs_session.dart';
 import '../state/app_settings.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_card.dart';
+import 'xhs_login_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -16,6 +18,56 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  bool _xhsLoggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshXhsSession();
+  }
+
+  Future<void> _refreshXhsSession() async {
+    final logged = await XhsSession.hasSession();
+    if (!mounted) return;
+    setState(() => _xhsLoggedIn = logged);
+  }
+
+  Future<void> _openXhsLogin() async {
+    if (_xhsLoggedIn) {
+      final signOut = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('小红书已登录'),
+          content: const Text('退出登录会清除本机保存的 cookie，确定吗？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('退出登录'),
+            ),
+          ],
+        ),
+      );
+      if (signOut != true) return;
+      await XhsSession.clear();
+      await _refreshXhsSession();
+      if (!mounted) return;
+      _toast('已清除小红书登录');
+      return;
+    }
+
+    final done = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const XhsLoginScreen()),
+    );
+    await _refreshXhsSession();
+    if (!mounted || done != true) return;
+    _toast(_xhsLoggedIn ? '小红书登录成功' : '还没检测到登录态，请重试');
+  }
+
   void _toast(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
@@ -210,6 +262,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: _pickConcurrency,
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          _groupTitle(context, '账号'),
+          AppCard(
+            padding: EdgeInsets.zero,
+            child: _RowTile(
+              icon: Icons.login_rounded,
+              title: '小红书登录',
+              subtitle: _xhsLoggedIn ? '已登录（点击可退出）' : '未登录（点击去登录）',
+              onTap: _openXhsLogin,
             ),
           ),
           const SizedBox(height: 24),
