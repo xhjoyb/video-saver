@@ -1,30 +1,41 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-/// 小红书登录态（WebView cookie）。
+/// 小红书登录态。
 ///
-/// WebView 的 CookieManager 是全局单例，登录页写入的 cookie 会被
-/// ParseController 的隐藏 WebView 直接复用，因此只需登录一次。
+/// webview_flutter 4.x 的 `WebViewCookieManager` 只能写/清 cookie、**不能读取**，
+/// 所以这里用本地标记表示「已登录」，真正的凭据仍保存在 WebView 的 cookie 里。
+/// 解析撞到登录墙时会提示重新登录，避免标记过期造成误判。
 class XhsSession {
   XhsSession._();
 
-  static final Uri _origin = Uri.parse('https://www.xiaohongshu.com');
-  static const String _cookieName = 'web_session';
+  static const String _key = 'xhs_logged_in';
 
-  /// 是否已登录：只看 `web_session` 是否存在且非空
   static Future<bool> hasSession() async {
     try {
-      final cookies = await WebViewCookieManager().getCookies(_origin);
-      return cookies.any(
-        (c) => c.name == _cookieName && c.value.trim().isNotEmpty,
-      );
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_key) ?? false;
     } catch (_) {
       return false;
     }
   }
 
-  /// 清除 WebView 的全部 cookie（会连带清掉抖音的匿名 cookie，不影响功能）
+  static Future<void> markLoggedIn(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (value) {
+        await prefs.setBool(_key, true);
+      } else {
+        await prefs.remove(_key);
+      }
+    } catch (_) {}
+  }
+
+  /// 退出登录：清本地标记 + 清 WebView cookie（会连带清掉抖音匿名 cookie，不影响功能）
   static Future<void> clear() async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_key);
       await WebViewCookieManager().clearCookies();
     } catch (_) {}
   }

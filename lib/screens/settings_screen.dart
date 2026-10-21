@@ -63,9 +63,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context,
       MaterialPageRoute(builder: (_) => const XhsLoginScreen()),
     );
+    if (!mounted) return;
+    if (done != true) {
+      _toast('还没完成登录，可再试一次');
+      return;
+    }
+    await XhsSession.markLoggedIn(true);
     await _refreshXhsSession();
-    if (!mounted || done != true) return;
-    _toast(_xhsLoggedIn ? '小红书登录成功' : '还没检测到登录态，请重试');
+    if (!mounted) return;
+    _toast('小红书登录成功');
   }
 
   void _toast(String message) {
