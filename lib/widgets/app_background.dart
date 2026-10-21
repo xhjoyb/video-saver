@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import '../app/app_events.dart';
 import '../state/app_settings.dart';
 import '../theme/app_palette.dart';
 
@@ -19,29 +20,35 @@ class AppBackground extends StatelessWidget {
     final path = settings.bgPath;
     final hasCustom = settings.bgType != BackgroundType.none && path != null;
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [p.bgTop, p.bgBottom],
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppEvents.hideBackground,
+      builder: (context, hidden, _) {
+        final showCustom = hasCustom && !hidden;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [p.bgTop, p.bgBottom],
+                ),
+              ),
             ),
-          ),
-        ),
-        if (hasCustom && settings.bgType == BackgroundType.image)
-          Image.file(
-            File(path),
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-          ),
-        if (hasCustom && settings.bgType == BackgroundType.video)
-          _VideoBackground(path: path),
-        if (hasCustom) ColoredBox(color: p.scrim),
-        child,
-      ],
+            if (showCustom && settings.bgType == BackgroundType.image)
+              Image.file(
+                File(path),
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            if (showCustom && settings.bgType == BackgroundType.video)
+              _VideoBackground(path: path),
+            if (showCustom) ColoredBox(color: p.scrim),
+            child,
+          ],
+        );
+      },
     );
   }
 }

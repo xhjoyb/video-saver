@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../app/app_events.dart';
 import '../parser/xiaohongshu_parser.dart';
 import '../theme/app_palette.dart';
 
@@ -21,6 +22,8 @@ class _XhsLoginScreenState extends State<XhsLoginScreen> {
   @override
   void initState() {
     super.initState();
+    // 视频/图片背景是 PlatformView，会和 WebView 抢层级把内容盖住，进页面时先隐藏
+    AppEvents.hideBackground.value = true;
     _web = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setUserAgent(XiaohongshuParser.userAgent)
@@ -37,6 +40,12 @@ class _XhsLoginScreenState extends State<XhsLoginScreen> {
         ),
       )
       ..loadRequest(Uri.parse('https://www.xiaohongshu.com/login'));
+  }
+
+  @override
+  void dispose() {
+    AppEvents.hideBackground.value = false;
+    super.dispose();
   }
 
   /// cookie 不可读，只能用页面内 JS 间接判断：
