@@ -20,6 +20,16 @@ class HistoryStore extends ChangeNotifier {
 
   int get total => _items.length;
   int get downloadedCount => _items.where((e) => e.downloaded).length;
+  int get platformCount => _items.map((e) => e.platform).toSet().length;
+
+  /// 当前有记录的平台（按出现顺序去重）
+  List<String> get platforms {
+    final seen = <String>[];
+    for (final item in _items) {
+      if (!seen.contains(item.platform)) seen.add(item.platform);
+    }
+    return seen;
+  }
 
   Future<void> load() async {
     try {
@@ -54,6 +64,15 @@ class HistoryStore extends ChangeNotifier {
 
   Future<void> remove(String awemeId) async {
     _items.removeWhere((e) => e.awemeId == awemeId);
+    notifyListeners();
+    await _persist();
+  }
+
+  /// 批量删除（历史页多选）
+  Future<void> removeMany(Iterable<String> awemeIds) async {
+    final ids = awemeIds.toSet();
+    if (ids.isEmpty) return;
+    _items.removeWhere((e) => ids.contains(e.awemeId));
     notifyListeners();
     await _persist();
   }
