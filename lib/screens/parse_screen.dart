@@ -669,6 +669,16 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
                               size: 18,
                               color: p.faint,
                             ),
+                          )
+                        else if (task.status == DownloadStatus.failed ||
+                            task.status == DownloadStatus.interrupted)
+                          GestureDetector(
+                            onTap: () => queue.retry(task.id),
+                            child: Icon(
+                              Icons.refresh_rounded,
+                              size: 18,
+                              color: p.accent,
+                            ),
                           ),
                       ],
                     ),

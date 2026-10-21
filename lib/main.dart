@@ -22,6 +22,7 @@ Future<void> main() async {
   final settings = AppSettings(prefs);
   DownloadQueue.instance.concurrency = settings.downloadConcurrency;
   await HistoryStore.instance.load();
+  await DownloadQueue.instance.restore();
   runApp(VideoSaverApp(settings: settings));
 }
 
