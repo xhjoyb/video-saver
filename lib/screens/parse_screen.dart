@@ -578,7 +578,10 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
                     icon: Icons.photo_library_rounded,
                     height: 42,
                     expand: true,
-                    onPressed: _selectedImages.isEmpty ? null : _downloadImages,
+                    // 下载中禁用，避免重复点导致同一批图片重复入库
+                    onPressed: (_downloading || _selectedImages.isEmpty)
+                        ? null
+                        : _downloadImages,
                   ),
               ],
             ),
@@ -645,6 +648,8 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
                               else
                                 Text(
                                   task.statusText,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                   style: AppText.label(context),
                                 ),
                             ],

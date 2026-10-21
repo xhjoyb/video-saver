@@ -175,7 +175,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 border: InputBorder.none,
                 isDense: true,
               ),
-              onChanged: (v) => setState(() => _query = v),
+              onChanged: (v) => setState(() {
+                _query = v;
+                // 过滤条件变化后旧的勾选可能已不可见，一并清掉
+                _selected.clear();
+              }),
             ),
           ),
           if (_query.isNotEmpty)
@@ -204,7 +208,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
       children: [
         for (final option in options)
           GestureDetector(
-            onTap: () => setState(() => _platform = option.key),
+            onTap: () => setState(() {
+              _platform = option.key;
+              // 切换平台后清空勾选，避免误删不可见条目
+              _selected.clear();
+            }),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(

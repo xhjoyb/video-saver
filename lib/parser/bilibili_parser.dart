@@ -167,7 +167,18 @@ class BilibiliParser {
     return '$query&w_rid=$rid';
   }
 
+  static String? _cachedMixin;
+  static DateTime? _cachedAt;
+
   static Future<String> _wbiMixin() async {
+    // nav 下发的 img_key/sub_key 有效期约 1 小时，缓存避免每档 qn 都多打一次
+    final cachedAt = _cachedAt;
+    final cached = _cachedMixin;
+    if (cached != null &&
+        cachedAt != null &&
+        DateTime.now().difference(cachedAt).inMinutes < 60) {
+      return cached;
+    }
     final nav = await _getJson('https://api.bilibili.com/x/web-interface/nav');
     final data = nav['data'];
     final wbi = data is Map ? data['wbi_img'] : null;
@@ -178,7 +189,10 @@ class BilibiliParser {
     }
     final imgKey = imgUrl.split('/').last.split('.').first;
     final subKey = subUrl.split('/').last.split('.').first;
-    return mixinKey(imgKey, subKey);
+    final mixin = mixinKey(imgKey, subKey);
+    _cachedMixin = mixin;
+    _cachedAt = DateTime.now();
+    return mixin;
   }
 
   static Future<ParseResult> parse(String input) async {
