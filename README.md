@@ -6,7 +6,7 @@
 - 技术栈：Flutter 3.24.5 + Material 3，Kotlin 原生壳（MethodChannel）
 - Android：minSdk 26 / targetSdk 34，仅 arm64 出包
 - 构建：GitHub Actions 云端构建 → Release
-- 当前基线：**`flutter-48`**（commit `459ac1a9`，App 内版本 `0.5.0 (build 5)`），语义 tag **`v0.5.0-kuaishou`**（上一档 `v0.5.0`）
+- 当前基线：**`flutter-59`**（commit `5aa1125a`，App 内版本 `0.6.0 (build 6)`），语义 tag **`v0.6.0`**（上一档 `v0.5.0-kuaishou`）
 - 仓库：**public** — https://github.com/xhjoyb/video-saver
 
 ## 当前能力
@@ -209,6 +209,7 @@ App 内开发者页面：**设置 → 开发者 → 解析探针**，把 WebView
 | `flutter-56` | 注入浏览器特征伪装 + `/404 sec_` 明确提示；结论：WebView 被风控，**小红书暂不支持** |
 | `flutter-57` | 小红书收口：平台卡片灰态、移除登录入口、解析直接提示；平台数回到 3 |
 | `flutter-58` | 历史增强：平台筛选 / 时间分组（今天·昨天·最近 7 天·更早）/ 批量删除 / 平台数真实统计 |
+| `flutter-59` | 版本升至 `0.6.0`：三平台 + 下载队列 + 后台下载 + 历史增强的正式基线 |
 
 ## 基线（回退点）
 
@@ -221,7 +222,8 @@ App 内开发者页面：**设置 → 开发者 → 解析探针**，把 WebView
 | `v0.4.0` | `aacfc1fb` | `flutter-41` | 剪贴板识别 / 去相册 / 设置项落地 / 单测 + CI Test |
 | `v0.4.0-bilibili` | `166de112` | `flutter-45` | B 站接入：wbi 签名 / BV 与短链 / 720P+360P / PC UA 下载 |
 | `v0.5.0` | `1ad8904c` | `flutter-47` | 下载队列 + 后台下载（前台服务 / 通知进度 / WakeLock） |
-| `v0.5.0-kuaishou` | `459ac1a9` | `flutter-48` | 快手接入：移动分享页 SSR 直出 mp4 / 短链与 photoId 识别（**当前基线**） |
+| `v0.5.0-kuaishou` | `459ac1a9` | `flutter-48` | 快手接入：移动分享页 SSR 直出 mp4 / 短链与 photoId 识别 |
+| `v0.6.0` | `5aa1125a` | `flutter-59` | 0.6.0 正式版：三平台 + 下载队列 + 后台下载 + 历史增强（**当前基线**） |
 
 回退方式：用 `workflow_dispatch` 指定目标 commit 触发 `flutter.yml`，约 15–25 分钟重新出包。
 Release 与构建物只增不删，清理必须由需求方明确指定（范围 + 数量）。
