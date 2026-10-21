@@ -194,7 +194,7 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
     if (result == null || result.videoUrls.isEmpty) return;
     final qualities = result.qualities;
     final quality = qualities[_qualityIndex.clamp(0, qualities.length - 1)];
-    DownloadQueue.instance.enqueue(
+    final task = DownloadQueue.instance.enqueue(
       title: result.displayTitle,
       fileName: result.fileName,
       url: quality.url,
@@ -213,7 +213,7 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
       },
       awemeId: result.awemeId,
     );
-    _toast('已加入下载队列');
+    _toast(task == null ? '该视频已在下载队列中' : '已加入下载队列');
   }
 
   Future<void> _downloadImages() async {

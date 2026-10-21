@@ -3,6 +3,7 @@ package com.xhjoyb.videosaver
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -91,6 +92,7 @@ class DownloadForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        refreshWakeLock()
         val running = intent?.getIntExtra(EXTRA_RUNNING, 0) ?: 0
         val queued = intent?.getIntExtra(EXTRA_QUEUED, 0) ?: 0
         val progress = intent?.getIntExtra(EXTRA_PROGRESS, -1) ?: -1
@@ -123,6 +125,25 @@ class DownloadForegroundService : Service() {
         super.onDestroy()
     }
 
+    /// 每次通知更新时续期 WakeLock，避免长下载中途 CPU 休眠
+    private fun refreshWakeLock() {
+        val lock = wakeLock ?: return
+        try {
+            if (lock.isHeld) lock.release()
+            lock.acquire(60 * 60 * 1000L)
+        } catch (_: Exception) {
+        }
+    }
+
+    /// 点通知回到 App
+    private fun contentPendingIntent(): PendingIntent {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        return PendingIntent.getActivity(this, 0, intent, flags)
+    }
+
     private fun createChannel() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channel = NotificationChannel(
@@ -148,6 +169,7 @@ class DownloadForegroundService : Service() {
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setContentIntent(contentPendingIntent())
         if (progress in 0..100) {
             builder.setProgress(100, progress, false)
         } else {

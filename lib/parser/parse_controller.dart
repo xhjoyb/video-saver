@@ -216,6 +216,9 @@ class ParseController extends ChangeNotifier {
   }
 
   Future<void> _parseBilibili(String input) async {
+    _timeout = Timer(const Duration(seconds: 30), () {
+      if (busy) _fail('B 站解析超时，请检查网络后重试');
+    });
     try {
       final parsed = await BilibiliParser.parse(input);
       if (parsed.videoUrls.isEmpty) {
@@ -224,6 +227,7 @@ class ParseController extends ChangeNotifier {
       }
       _result = parsed;
       _stage = ParseStage.done;
+      _timeout?.cancel();
       notifyListeners();
     } catch (e) {
       final text = e.toString();
@@ -234,6 +238,9 @@ class ParseController extends ChangeNotifier {
   }
 
   Future<void> _parseKuaishou(String input) async {
+    _timeout = Timer(const Duration(seconds: 30), () {
+      if (busy) _fail('快手解析超时，请检查网络后重试');
+    });
     try {
       final parsed = await KuaishouParser.parse(input);
       if (parsed.videoUrls.isEmpty) {
@@ -242,6 +249,7 @@ class ParseController extends ChangeNotifier {
       }
       _result = parsed;
       _stage = ParseStage.done;
+      _timeout?.cancel();
       notifyListeners();
     } catch (e) {
       final text = e.toString();

@@ -40,10 +40,11 @@ class DownloadTask {
   String? savedUri;
   int attempts = 0;
 
-  /// 结束态（可被「清除已完成」清理）；interrupted 不算，留给用户重试
+  /// 结束态（可被「清除已完成」清理）
   bool get finished => status == DownloadStatus.success ||
       status == DownloadStatus.failed ||
-      status == DownloadStatus.cancelled;
+      status == DownloadStatus.cancelled ||
+      status == DownloadStatus.interrupted;
 
   String get statusText {
     switch (status) {
@@ -170,7 +171,7 @@ class DownloadQueue extends ChangeNotifier {
     }
   }
 
-  DownloadTask enqueue({
+  DownloadTask? enqueue({
     required String title,
     required String fileName,
     required String url,
@@ -179,6 +180,14 @@ class DownloadQueue extends ChangeNotifier {
     String? userAgent,
     required String awemeId,
   }) {
+    // 同一视频已在队列（排队/下载中）时不重复入队
+    for (final task in _tasks) {
+      if (task.url == url &&
+          (task.status == DownloadStatus.queued ||
+              task.status == DownloadStatus.running)) {
+        return null;
+      }
+    }
     final task = DownloadTask(
       id: '${DateTime.now().microsecondsSinceEpoch}',
       title: title,
@@ -192,7 +201,7 @@ class DownloadQueue extends ChangeNotifier {
     _tasks.add(task);
     _trim();
     notifyListeners();
-    unawaited(_persist());
+    _persist();
     _pump();
     unawaited(_syncNotification(force: true));
     return task;
@@ -212,7 +221,7 @@ class DownloadQueue extends ChangeNotifier {
         ..error = null
         ..progress = 0;
       notifyListeners();
-      unawaited(_persist());
+      _persist();
       _pump();
       return;
     }
@@ -233,7 +242,7 @@ class DownloadQueue extends ChangeNotifier {
     task.progress = 0;
     task.error = null;
     notifyListeners();
-    unawaited(_persist());
+    _persist();
     unawaited(_syncNotification(force: true));
 
     File? file;
@@ -282,7 +291,7 @@ class DownloadQueue extends ChangeNotifier {
           await file.delete();
         } catch (_) {}
       }
-      unawaited(_persist());
+      _persist();
       _pump();
       unawaited(_syncNotification(force: true));
     }
@@ -295,7 +304,7 @@ class DownloadQueue extends ChangeNotifier {
       if (task.status != DownloadStatus.queued) return;
       task.status = DownloadStatus.cancelled;
       notifyListeners();
-      unawaited(_persist());
+      _persist();
       _pump();
       return;
     }
@@ -304,7 +313,7 @@ class DownloadQueue extends ChangeNotifier {
   void removeFinished() {
     _tasks.removeWhere((t) => t.finished);
     notifyListeners();
-    unawaited(_persist());
+    _persist();
   }
 
   /// 同步前台服务通知：有任务时启动，全部结束才停止；进度更新节流 800ms
@@ -346,7 +355,16 @@ class DownloadQueue extends ChangeNotifier {
     }
   }
 
-  Future<void> _persist() async {
+  Future<void> _persistChain = Future<void>.value();
+
+  /// 写盘串行化：避免多次异步写乱序完成导致状态回退
+  void _persist() {
+    _persistChain = _persistChain
+        .then((_) => _writePrefs())
+        .catchError((Object _) {});
+  }
+
+  Future<void> _writePrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setStringList(

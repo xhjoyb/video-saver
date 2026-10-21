@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
@@ -36,6 +37,7 @@ class DownloadService {
     String? userAgent,
   }) async {
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
+    File? target;
     try {
       final request = await client.getUrl(Uri.parse(url));
       // 平台差异：B 站 CDN 只认 PC 浏览器 UA，手机 UA 即使带 Referer 也 403
@@ -48,12 +50,13 @@ class DownloadService {
       }
       final dir = await getExternalStorageDirectory();
       if (dir == null) throw const FileSystemException('无法获取下载目录');
-      final target = File('${dir.path}/$fileName');
+      target = File('${dir.path}/$fileName');
       final sink = target.openWrite();
       var received = 0;
       final total = response.contentLength;
       try {
-        await for (final chunk in response) {
+        // 单块 30s 无数据即判定断流，避免任务永久挂在「下载中」
+        await for (final chunk in response.timeout(const Duration(seconds: 30))) {
           sink.add(chunk);
           received += chunk.length;
           onProgress?.call(received, total);
@@ -62,6 +65,14 @@ class DownloadService {
         await sink.close();
       }
       return target;
+    } catch (e) {
+      // 失败/中断时清掉半截文件，避免磁盘泄漏
+      if (target != null) {
+        try {
+          await target.delete();
+        } catch (_) {}
+      }
+      rethrow;
     } finally {
       client.close(force: true);
     }
