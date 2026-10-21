@@ -45,6 +45,12 @@ class MainActivity : FlutterActivity() {
                         DownloadForegroundService.stop(this)
                         result.success(true)
                     }
+                    "getWebViewCookies" -> {
+                        val url = call.argument<String>("url") ?: "https://www.bilibili.com"
+                        val cookie = android.webkit.CookieManager.getInstance()
+                            .getCookie(url) ?: ""
+                        result.success(cookie)
+                    }
                     else -> result.notImplemented()
                 }
             }

@@ -3,10 +3,12 @@ import 'package:flutter/services.dart';
 
 import '../dev/parse_probe_screen.dart';
 import '../download/download_queue.dart';
+import '../platform/bilibili_session.dart';
 import '../state/app_settings.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_card.dart';
+import 'bilibili_login_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -16,6 +18,58 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  bool _biliLoggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshBiliSession();
+  }
+
+  Future<void> _refreshBiliSession() async {
+    final logged = await BilibiliSession.isLoggedIn();
+    if (!mounted) return;
+    setState(() => _biliLoggedIn = logged);
+  }
+
+  Future<void> _openBiliLogin() async {
+    if (_biliLoggedIn) {
+      final signOut = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('B 站已登录'),
+          content: const Text('退出后画质会回到 720P 上限，确定吗？'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('退出登录'),
+            ),
+          ],
+        ),
+      );
+      if (signOut != true) return;
+      await BilibiliSession.clear();
+      await _refreshBiliSession();
+      if (!mounted) return;
+      _toast('已退出 B 站登录');
+      return;
+    }
+
+    final done = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const BilibiliLoginScreen()),
+    );
+    if (!mounted || done != true) return;
+    final ok = await BilibiliSession.captureFromWebView();
+    await _refreshBiliSession();
+    if (!mounted) return;
+    _toast(ok ? 'B 站登录成功（1080P 已解锁）' : '还没检测到登录态，请重试');
+  }
+
   void _toast(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
@@ -210,6 +264,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: _pickConcurrency,
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          _groupTitle(context, '账号'),
+          AppCard(
+            padding: EdgeInsets.zero,
+            child: _RowTile(
+              icon: Icons.live_tv_rounded,
+              title: 'B 站登录',
+              subtitle: _biliLoggedIn
+                  ? '已登录（1080P 可用，点击退出）'
+                  : '未登录（点击登录，可解锁 1080P）',
+              onTap: _openBiliLogin,
             ),
           ),
           const SizedBox(height: 24),

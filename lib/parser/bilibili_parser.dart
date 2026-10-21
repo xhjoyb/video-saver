@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart' as crypto;
 
+import '../platform/bilibili_session.dart';
 import 'douyin_parser.dart';
 import 'parse_result.dart';
 
@@ -127,6 +128,11 @@ class BilibiliParser {
       request.headers.set(HttpHeaders.userAgentHeader, userAgent);
       request.headers.set(HttpHeaders.refererHeader, referer);
       request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+      // 有登录态就带上，1080P / 受限视频才拿得到
+      final cookie = await BilibiliSession.cookie();
+      if (cookie != null && cookie.isNotEmpty) {
+        request.headers.set(HttpHeaders.cookieHeader, cookie);
+      }
       final response = await request.close();
       final body = await response.transform(utf8.decoder).join();
       if (response.statusCode != 200) {
@@ -216,8 +222,9 @@ class BilibiliParser {
     final urls = <String>[];
     final labels = <String>[];
 
-    // 未登录只有 720P / 360P 两档，按 qn=64、16 依次请求
-    for (final qn in [64, 16]) {
+    // 登录后 1080P 生效；未登录 qn=80 会被降级为 64（URL 相同会被去重）
+    var authExpired = false;
+    for (final qn in [80, 64, 16]) {
       try {
         final query = signQuery(
           {
@@ -234,7 +241,11 @@ class BilibiliParser {
         final res = await _getJson(
           'https://api.bilibili.com/x/player/wbi/playurl?$query',
         );
-        if ('${res['code']}' != '0') continue;
+        final code = '${res['code']}';
+        if (code != '0') {
+          if (code == '-101') authExpired = true;
+          continue;
+        }
         final data = res['data'];
         if (data is! Map) continue;
         final durl = (data['durl'] as List?) ?? const [];
@@ -249,6 +260,9 @@ class BilibiliParser {
       }
     }
 
+    if (urls.isEmpty && authExpired) {
+      throw const FormatException('B 站登录已过期，请到「设置 → B 站登录」重新登录');
+    }
     if (urls.isEmpty) {
       throw const FormatException('没有拿到播放地址（可能需要登录或视频受限）');
     }
