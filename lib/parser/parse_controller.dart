@@ -271,21 +271,38 @@ class ParseController extends ChangeNotifier {
     _stage = ParseStage.parsing;
     notifyListeners();
 
-    // 先等短链跳到带 noteId 的笔记页（通常是 /discovery/item/{24位}）
+    // 先等短链跳到带 noteId 的笔记页；若停在落地页，就从页面里抠跳转链接再加载
     String? noteId = XiaohongshuParser.extractNoteId(shareUrl);
-    for (var hop = 0; hop < 20 && noteId == null; hop++) {
-      await Future.delayed(const Duration(milliseconds: 400));
+    var lastUrl = shareUrl;
+    var landingReloads = 0;
+    for (var hop = 0; hop < 24 && noteId == null; hop++) {
+      await Future.delayed(const Duration(milliseconds: 500));
       if (_stage != ParseStage.parsing) return;
       try {
-        final current = await web.currentUrl();
-        noteId = XiaohongshuParser.extractNoteId(current ?? '');
+        lastUrl = await web.currentUrl() ?? lastUrl;
+        noteId = XiaohongshuParser.extractNoteId(lastUrl);
+        if (noteId != null) break;
+
+        // 落地页兜底：页面里通常有指向笔记页的链接，主动加载它
+        if (landingReloads < 2) {
+          final raw = await web.runJavaScriptReturningResult(
+            XiaohongshuParser.redirectJs,
+          );
+          final link = XiaohongshuParser.decodeString(raw.toString());
+          if (link.isNotEmpty) {
+            landingReloads += 1;
+            lastUrl = link;
+            await web.loadRequest(Uri.parse(link));
+          }
+        }
       } catch (_) {
         // 继续等
       }
     }
     final id = noteId;
     if (id == null) {
-      _fail('没有识别到小红书笔记链接');
+      final shown = lastUrl.length > 72 ? lastUrl.substring(0, 72) : lastUrl;
+      _fail('没有识别到小红书笔记链接（当前页面：$shown）');
       return;
     }
 

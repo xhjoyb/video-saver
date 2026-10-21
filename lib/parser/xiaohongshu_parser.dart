@@ -166,6 +166,41 @@ class XiaohongshuParser {
 })()
 ''';
 
+  /// 短链落地页兜底：从页面里找指向笔记页的链接（含 HTML 里的裸 URL）
+  static const String redirectJs = r'''
+(function () {
+  try {
+    var links = document.querySelectorAll('a[href]');
+    for (var i = 0; i < links.length; i++) {
+      var h = links[i].href || '';
+      if (h.indexOf('xiaohongshu.com') >= 0 &&
+          (h.indexOf('/discovery/item/') >= 0 || h.indexOf('/explore/') >= 0)) {
+        return h;
+      }
+    }
+    var html = document.documentElement.innerHTML || '';
+    var m = html.match(/https?:\/\/www\.xiaohongshu\.com\/(?:discovery\/item|explore)\/[0-9a-f]{24}[^"'\s<>]*/);
+    if (m) return m[0];
+    return "";
+  } catch (e) { return ""; }
+})()
+''';
+
+  /// 把 `runJavaScriptReturningResult` 返回的带引号字符串还原为普通文本
+  static String decodeString(String raw) {
+    var text = raw.trim();
+    if (text.isEmpty || text == '""') return '';
+    if (text.startsWith('"') && text.endsWith('"')) {
+      try {
+        final decoded = jsonDecode(text);
+        return decoded is String ? decoded : '';
+      } catch (_) {
+        return '';
+      }
+    }
+    return text;
+  }
+
   static Future<Map<String, dynamic>?> decodePayload(String raw) async {
     var text = raw.trim();
     if (text.isEmpty || text == '""') return null;
