@@ -222,8 +222,9 @@ class BilibiliParser {
     final urls = <String>[];
     final labels = <String>[];
 
-    // 登录后 1080P 生效；未登录 qn=80 会被降级为 64（URL 相同会被去重）
+    // 登录后 1080P 生效；未登录 qn=80 会被降级为 64
     var authExpired = false;
+    final seenQuality = <String>{};
     for (final qn in [80, 64, 16]) {
       try {
         final query = signQuery(
@@ -251,10 +252,14 @@ class BilibiliParser {
         final durl = (data['durl'] as List?) ?? const [];
         if (durl.isEmpty) continue;
         final first = durl.first;
+        final quality = '${data['quality'] ?? qn}';
+        // 按码率档位去重：不同 qn 请求同一档时，返回的直链签名参数不同，
+        // 只比 URL 字符串会重复出两个「720P」
+        if (!seenQuality.add(quality)) continue;
         final url = first is Map ? '${first['url'] ?? ''}' : '';
         if (url.isEmpty || urls.contains(url)) continue;
         urls.add(url);
-        labels.add(_qualityLabel('${data['quality'] ?? qn}'));
+        labels.add(_qualityLabel(quality));
       } catch (_) {
         // 单档失败不影响其它档
       }

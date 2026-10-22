@@ -62,6 +62,9 @@ class ParseController extends ChangeNotifier {
   bool _warmed = false;
   String _mode = 'douyin';
 
+  /// 请求代次：新解析开始时自增，旧请求的异步回写会因代次不匹配而作废
+  int _seq = 0;
+
   /// 预热：提前打开 douyin.com 让 cookie / 签名就绪，降低首次解析被拦与耗时
   Future<void> warmUp() async {
     if (_warmed) return;
@@ -83,6 +86,7 @@ class ParseController extends ChangeNotifier {
       _stage == ParseStage.parsing;
 
   Future<void> parse(String input) async {
+    final seq = ++_seq;
     _debounce?.cancel();
     _timeout?.cancel();
     _probeStarted = false;
@@ -100,13 +104,13 @@ class ParseController extends ChangeNotifier {
 
     // B 站走纯 HTTP（wbi 签名），不需要 WebView
     if (BilibiliParser.looksLike(input)) {
-      await _parseBilibili(input);
+      await _parseBilibili(input, seq);
       return;
     }
 
     // 快手：移动分享页 SSR 直出 mp4，同样走纯 HTTP
     if (KuaishouParser.looksLike(input)) {
-      await _parseKuaishou(input);
+      await _parseKuaishou(input, seq);
       return;
     }
 
@@ -144,6 +148,7 @@ class ParseController extends ChangeNotifier {
 
   Future<void> _runProbe() async {
     if (_probeStarted) return;
+    final seq = _seq;
     _probeStarted = true;
     _stage = ParseStage.parsing;
     notifyListeners();
@@ -175,6 +180,7 @@ class ParseController extends ChangeNotifier {
           _fail(body.isEmpty ? '接口返回异常：${data['error']}' : '接口返回异常：$body');
           return;
         }
+        if (seq != _seq) return;
         final parsed = ParseResult.fromDouyin(data);
         if (parsed.videoUrls.isEmpty && parsed.imageUrls.isEmpty) {
           _fail('没有拿到视频或图片地址');
@@ -215,12 +221,13 @@ class ParseController extends ChangeNotifier {
     return null;
   }
 
-  Future<void> _parseBilibili(String input) async {
+  Future<void> _parseBilibili(String input, int seq) async {
     _timeout = Timer(const Duration(seconds: 30), () {
       if (busy) _fail('B 站解析超时，请检查网络后重试');
     });
     try {
       final parsed = await BilibiliParser.parse(input);
+      if (seq != _seq) return;
       if (parsed.videoUrls.isEmpty) {
         _fail('没有拿到 B 站播放地址');
         return;
@@ -230,6 +237,7 @@ class ParseController extends ChangeNotifier {
       _timeout?.cancel();
       notifyListeners();
     } catch (e) {
+      if (seq != _seq) return;
       final text = e.toString();
       final message =
           text.startsWith('Exception: ') ? text.substring(11) : text;
@@ -237,12 +245,13 @@ class ParseController extends ChangeNotifier {
     }
   }
 
-  Future<void> _parseKuaishou(String input) async {
+  Future<void> _parseKuaishou(String input, int seq) async {
     _timeout = Timer(const Duration(seconds: 30), () {
       if (busy) _fail('快手解析超时，请检查网络后重试');
     });
     try {
       final parsed = await KuaishouParser.parse(input);
+      if (seq != _seq) return;
       if (parsed.videoUrls.isEmpty) {
         _fail('没有拿到快手视频地址');
         return;
@@ -252,6 +261,7 @@ class ParseController extends ChangeNotifier {
       _timeout?.cancel();
       notifyListeners();
     } catch (e) {
+      if (seq != _seq) return;
       final text = e.toString();
       final message =
           text.startsWith('Exception: ') ? text.substring(11) : text;
@@ -264,6 +274,16 @@ class ParseController extends ChangeNotifier {
     _fail('小红书暂不支持：WebView 被平台安全拦截，可在小红书 App 内直接观看');
   }
 
+  void cancel() {
+    _seq++;
+    _debounce?.cancel();
+    _timeout?.cancel();
+    _stage = ParseStage.idle;
+    _result = null;
+    _error = null;
+    notifyListeners();
+  }
+
   void _fail(String message) {
     _timeout?.cancel();
     _stage = ParseStage.error;
@@ -273,6 +293,7 @@ class ParseController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _seq++;
     _debounce?.cancel();
     _timeout?.cancel();
     super.dispose();
