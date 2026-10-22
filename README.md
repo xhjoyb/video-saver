@@ -90,6 +90,36 @@
 5. 移动端 UA 会触发 `snssdk://` 唤起 App，WebView 会整页 `ERR_UNKNOWN_URL_SCHEME`——必须 PC UA + 拦截非 http(s) 导航；
 6. **冷启动首次解析可能被 Argus 拦**（cookie 未就绪，返回 "Blocked by …" 纯文本），已改为自动重试 3 次。
 
+## 抖音解析排查记录（`flutter-67`）
+
+真机（`flutter-66`）症状：页面能打开到 `www.douyin.com/video/{id}`、`readyState=complete`、`byted_acrawler` 已加载、cookie 有 `UIFID` / `__ac_signature`，但 `window.__dyResult` 永远为空 → 提示「解析超时：页面未返回数据」。
+
+用 Frida 在 App 进程内实测（算法助手Pro 注入，不重新构建）：
+
+| 观测项 | 结果 |
+|---|---|
+| `navigator.userAgent` | `Windows NT 10.0 … Chrome/120.0.0.0`（App 强制覆盖） |
+| `navigator.userAgentData.platform` | **Android** ← 与 UA 自相矛盾 |
+| cookie | `UIFID` ✓ / `__ac_signature` ✓ / `msToken` ✗（独立 Chrome 里同样没有 msToken 也能成功，故非必需） |
+| 页面内 `fetch(aweme/detail)` | **既不 resolve 也不 reject**（一直 pending，12s 无结果） |
+| 同设备独立 Chrome 打开同一 URL | 同一请求 **200 / 68KB / 2s 内返回** |
+
+结论：不是服务端拒绝（被拒会留下 403 / `Blocked by…` 内容），而是**页面里的请求挂死**；最可能是「UA 与 Client Hints 不一致」这类环境矛盾，叠加分享页 302 带来的 `previous_page` 参数。
+
+`flutter-67` 的修法（逐层尝试，任一层成功即止）：
+
+| 层 | URL | UA |
+|---|---|---|
+| 1 | `https://www.douyin.com/video/{id}`（直连，少一跳 302） | Windows Chrome 120 |
+| 2 | 同上 | **WebView 真实 UA**（原生 `WebSettings.getDefaultUserAgent`，与 CH 一致） |
+| 3 | `https://www.iesdouyin.com/share/video/{id}/`（旧路径兜底） | Windows Chrome 120 |
+
+同时：
+
+- 页面内 `fetch` 加 **6s AbortController 超时**，失败/超时后用 **XMLHttpRequest 兜底**再打一次；
+- 结果里附带 `ua / adt(ClientHints 平台) / visibilityState / 耗时`，失败时能直接看出是不是环境问题；
+- 每次尝试写 `Android/data/<包名>/files/douyin_diag.log`（只记 UA/耗时/结果摘要，不含 cookie 值），以后不挂 Frida 也能定位。
+
 ## B 站清晰度链路（`flutter-66` 定论）
 
 先纠正一个长期错误结论：**`SESSDATA` 有效不等于能拿 1080P —— `fnval=1` 通道对已登录用户同样封顶 720P。**
@@ -194,6 +224,7 @@ App 内开发者页面：**设置 → 开发者 → 解析探针**，把 WebView
 | 无断点续传 | 中断后从头重下 | 记录已下载字节 + `Range` 续传；B 站直链有时效，过期需重新解析 |
 | 通知无操作按钮 | 通知栏只能看进度，不能暂停/取消 | 给通知加 `PendingIntent` action，广播回传队列控制 |
 | B 站 1080P 需合流 | DASH 通道音视频分离，成片由原生 `MediaMuxer` 转封装得到 | ✅ 已解决（`flutter-66`）：登录后可选 1080P；未登录仍 720P 封顶 |
+| 视频背景 + 重页面时崩溃 | 解析抖音会新建隐藏 WebView，背景视频的 ExoPlayer 往已释放的 `DirectByteBuffer` 写字节 → SIGSEGV（`SampleDataQueue.readData`）；图片/无背景不触发 | 待修（支线）：解析期间暂停并释放背景视频，或改用静态帧，或缩小隐藏 WebView 尺寸 |
 | 合流产物负 DTS | 视频轨首包 DTS 被 `MediaMuxer` 压到 −0.5s（源流 −0.13s）；PTS 与源逐包一致、`start_time=0`、音视频时长差 1.6ms、全片解码零告警，实测 ffmpeg 与系统播放正常 | 仅当个别播放器出现声画不同步时再处理：自写 DTS / 跳过 elst 推导（**不默认执行**） |
 | 番剧 / PGC 受限 | 版权内容拿不到 `playurl`，提示「可能需要登录或视频受限」 | 需大会员登录态；合流能力已具备，档位受账号等级限制 |
 | 图集仍走同步保存 | 图集不入队，无并发与自动重试 | 把图集拆成多任务入队，任务模型支持图片类型 |
@@ -247,6 +278,7 @@ App 内开发者页面：**设置 → 开发者 → 解析探针**，把 WebView
 | `flutter-64` | 修复 B 站清晰度重复档位；引入请求代次防止旧解析覆盖新结果；解析中可取消 |
 | `flutter-65` | 诊断包：B 站把服务端码率写入 `bili_diag.log`；抖音重试前重载页面、延长等待、错误带当前 URL |
 | `flutter-66` | **B 站真正解锁 1080P**：确认 durl 通道封顶 720P，改走 DASH（`fnval=4048`）取 1080P，原生 `MediaMuxer` 合流音视频；版本升 `0.7.0` |
+| `flutter-67` | 抖音解析修复：直连视频页 + 真实 UA 兜底 + fetch 6s 超时/XHR 兜底 + `douyin_diag.log`；版本升 `0.7.1` |
 
 ## 基线（回退点）
 

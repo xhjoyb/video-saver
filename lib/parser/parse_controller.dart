@@ -4,7 +4,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../platform/webview_env.dart';
 import 'bilibili_parser.dart';
+import 'diag_log.dart';
 import 'douyin_parser.dart';
 import 'kuaishou_parser.dart';
 import 'parse_result.dart';
@@ -123,15 +125,13 @@ class ParseController extends ChangeNotifier {
     _stage = ParseStage.loading;
     notifyListeners();
 
-    _timeout = Timer(const Duration(seconds: 35), () {
+    _timeout = Timer(const Duration(seconds: 50), () {
       if (busy) _fail('解析超时，请检查网络后重试');
     });
 
     try {
-      // 与探针一致：走分享页（会自动跳到 www.douyin.com/video/{id}）
-      await web.loadRequest(
-        Uri.parse('https://www.iesdouyin.com/share/video/$id/'),
-      );
+      // 直接打开视频页：少一跳 302，也避免分享页跳转带入的 previous_page 参数
+      await web.loadRequest(Uri.parse('https://www.douyin.com/video/$id'));
     } catch (e) {
       _fail('页面加载失败：$e');
     }
@@ -158,37 +158,51 @@ class ParseController extends ChangeNotifier {
       _fail('缺少视频 ID');
       return;
     }
-    for (var attempt = 1; attempt <= 3; attempt++) {
-      if (attempt > 1) {
-        // 页面可能已被反爬打崩，重新加载后再试（_probeStarted 已置位，不会重入）
+
+    // 逐层尝试：不同 URL + UA 组合。
+    // 真机发现 App 里 UA 被改成 Windows、Client Hints 仍是 Android，
+    // 这种自相矛盾的环境下页面 fetch 会一直 pending（既不成功也不报错）。
+    final desktopUa = DouyinParser.userAgent;
+    final nativeUa = await WebViewEnv.defaultUserAgent();
+    final attempts = <({String url, String ua})>[
+      (url: 'https://www.douyin.com/video/$id', ua: desktopUa),
+      (url: 'https://www.douyin.com/video/$id', ua: nativeUa ?? desktopUa),
+      (url: 'https://www.iesdouyin.com/share/video/$id/', ua: desktopUa),
+    ];
+
+    for (var i = 0; i < attempts.length; i++) {
+      final attempt = attempts[i];
+      final no = i + 1;
+      try {
+        await web.setUserAgent(attempt.ua);
+      } catch (_) {}
+      if (i > 0) {
+        // 换 URL / 换 UA 后必须重新加载页面才会生效
         try {
-          await web.loadRequest(
-            Uri.parse('https://www.iesdouyin.com/share/video/$id/'),
-          );
-          await Future.delayed(const Duration(milliseconds: 1500));
+          await web.loadRequest(Uri.parse(attempt.url));
+          await Future.delayed(const Duration(milliseconds: 1800));
         } catch (_) {}
       }
+      final startedAt = DateTime.now();
       try {
         await web.runJavaScriptReturningResult(DouyinParser.detailJs(id));
         final data = await _waitResult();
+        final elapsed = DateTime.now().difference(startedAt).inMilliseconds;
+        await DiagLog.write('douyin_diag.log', [
+          'attempt=$no ua=${_short(attempt.ua, 48)} url=${attempt.url}',
+          'elapsed=${elapsed}ms result=${_short(data == null ? '' : jsonEncode(data), 260)}',
+        ]);
         if (data == null) {
-          if (attempt < 3) {
-            await Future.delayed(const Duration(milliseconds: 900));
-            continue;
-          }
+          if (no < attempts.length) continue;
           final url = await web.currentUrl() ?? '';
-          final shown = url.length > 70 ? url.substring(0, 70) : url;
-          _fail('解析超时：页面未返回数据（当前页面：$shown）');
+          _fail('解析超时：页面未返回数据（当前页面：${_short(url, 70)}）');
           return;
         }
-        if (data['error'] != null) {
+        final error = data['error'];
+        if (error != null) {
+          if (no < attempts.length) continue;
           final body = '${data['body'] ?? ''}'.trim();
-          if (attempt < 3) {
-            // 首次常因页面 cookie / 签名未就绪被 Argus 拦截，稍候重试
-            await Future.delayed(const Duration(milliseconds: 1200));
-            continue;
-          }
-          _fail(body.isEmpty ? '接口返回异常：${data['error']}' : '接口返回异常：$body');
+          _fail(body.isEmpty ? '接口返回异常：$error' : '接口返回异常：$body');
           return;
         }
         if (seq != _seq) return;
@@ -203,19 +217,20 @@ class ParseController extends ChangeNotifier {
         notifyListeners();
         return;
       } catch (e) {
-        if (attempt < 3) {
-          await Future.delayed(const Duration(milliseconds: 900));
-          continue;
-        }
+        await DiagLog.write('douyin_diag.log', ['attempt=$no throw $e']);
+        if (no < attempts.length) continue;
         _fail('解析失败：$e');
         return;
       }
     }
   }
 
+  static String _short(String text, int max) =>
+      text.length > max ? text.substring(0, max) : text;
+
   Future<Map<String, dynamic>?> _waitResult() async {
-    // 30 × 400ms = 12s，给慢网/大 JSON 留足时间
-    for (var i = 0; i < 30; i++) {
+    // 25 × 400ms = 10s：JS 里 fetch 6s 超时后会走 XHR 兜底，10s 足够拿到结论
+    for (var i = 0; i < 25; i++) {
       await Future.delayed(const Duration(milliseconds: 400));
       try {
         final raw = await web.runJavaScriptReturningResult('window.__dyResult || ""');

@@ -62,6 +62,11 @@ class MainActivity : FlutterActivity() {
                             .getCookie(url) ?: ""
                         result.success(cookie)
                     }
+                    "defaultUserAgent" -> {
+                        // WebView 引擎真实 UA（与 Client Hints 一致），
+                        // 用于排查/规避「UA 声明 Windows、CH 却是 Android」的指纹矛盾
+                        result.success(android.webkit.WebSettings.getDefaultUserAgent(this))
+                    }
                     else -> result.notImplemented()
                 }
             }
