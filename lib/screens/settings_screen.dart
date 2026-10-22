@@ -303,7 +303,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _RowTile(
                   icon: Icons.info_outline_rounded,
                   title: '版本',
-                  subtitle: '0.6.0 (build 6)',
+                  subtitle: '0.7.0 (build 7)',
                 ),
                 _Divider(color: p.border),
                 _RowTile(

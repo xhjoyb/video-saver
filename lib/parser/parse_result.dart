@@ -1,10 +1,19 @@
 /// 一档清晰度（按 br 码率区分）
 class VideoQuality {
-  const VideoQuality({required this.label, required this.url, required this.br});
+  const VideoQuality({
+    required this.label,
+    required this.url,
+    required this.br,
+    this.audioUrl,
+  });
 
   final String label;
   final String url;
   final int br;
+
+  /// DASH 音轨地址：非空表示这条视频是「无音轨的视频流」，
+  /// 下载后需要与音轨合流才能得到可播放的成片（B 站 1080P 起只有 DASH）
+  final String? audioUrl;
 }
 
 /// 解析结果模型（多平台通用，抖音先落地）
@@ -17,6 +26,7 @@ class ParseResult {
     required this.coverUrl,
     required this.durationMs,
     required this.videoUrls,
+    this.audioUrls = const [],
     this.imageUrls = const [],
     this.qualityNames = const [],
   });
@@ -28,6 +38,9 @@ class ParseResult {
   final String coverUrl;
   final int durationMs;
   final List<String> videoUrls;
+
+  /// 与 [videoUrls] 并行：非空元素表示该档需要与音轨合流（B 站 DASH 1080P）
+  final List<String> audioUrls;
   final List<String> imageUrls;
 
   /// 可选：与 [videoUrls] 一一对应的清晰度名称（如 B 站 720P/360P）。
@@ -47,6 +60,7 @@ class ParseResult {
             label: qualityNames[i],
             url: videoUrls[i],
             br: videoUrls.length - i,
+            audioUrl: _audioAt(i),
           ),
       ];
     }
@@ -70,6 +84,13 @@ class ParseResult {
           br: parsed[i].br,
         ),
     ];
+  }
+
+  /// 取第 [i] 档对应的音轨地址（没有则为 null）
+  String? _audioAt(int i) {
+    if (i < 0 || i >= audioUrls.length) return null;
+    final audio = audioUrls[i].trim();
+    return audio.isEmpty ? null : audio;
   }
 
   String get durationText {

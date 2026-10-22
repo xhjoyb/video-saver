@@ -12,14 +12,23 @@ import 'parse_result.dart';
 ///
 /// 已验证：
 /// - `x/web-interface/view` 免签名
-/// - `x/player/wbi/playurl` 需 wbi 签名，`fnval=1` 返回 durl 单文件 mp4（含音轨）
-/// - 未登录最高 720P（qn=80/112 会被服务端降级为 64）
+/// - `x/player/wbi/playurl` 需 wbi 签名
+/// - **`fnval=1`（durl 单文件 mp4）通道即使登录也被服务端卡在 720P**：
+///   带 SESSDATA 请求 qn=80 仍返回 `quality=64 / accept=[64,16]`
+/// - **1080P 只在 DASH（`fnval=4048`）通道下发**：`quality=80`、
+///   `accept=[120,116,80,64,32,16]`，但视频流无音轨，必须与 audio 流合流
 /// - 直链下载必须带 `Referer: https://www.bilibili.com/`
 class BilibiliParser {
   BilibiliParser._();
 
   static const String userAgent = DouyinParser.userAgent;
   static const String referer = 'https://www.bilibili.com/';
+
+  /// DASH：音视频分离，1080P 起只有这个通道
+  static const int _dashFnval = 4048;
+
+  /// durl：单个 mp4（含音轨），最高 720P，下载即用无需合流
+  static const int _durlFnval = 1;
 
   static final RegExp _bvidRe = RegExp(r'BV[0-9A-Za-z]{10}');
   static final RegExp _urlRe = RegExp(r'https?://[^\s\u4e00-\u9fa5]+');
@@ -149,6 +158,90 @@ class BilibiliParser {
     }
   }
 
+  /// playurl 统一入口：wbi 签名 + 固定平台参数
+  static Future<Map<String, dynamic>> _playUrl({
+    required String bvid,
+    required String cid,
+    required int qn,
+    required int fnval,
+    required String mixin,
+  }) {
+    final query = signQuery(
+      {
+        'bvid': bvid,
+        'cid': cid,
+        'qn': '$qn',
+        'fnval': '$fnval',
+        'fnver': '0',
+        'fourk': '1',
+      },
+      mixin,
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+    );
+    return _getJson('https://api.bilibili.com/x/player/wbi/playurl?$query');
+  }
+
+  static String _short(Object error) {
+    final text = error.toString();
+    return text.length > 60 ? text.substring(0, 60) : text;
+  }
+
+  /// 从 dash 节点挑出每个清晰度档位的最佳编码
+  ///
+  /// 同一档位 B 站会同时下发 avc1 与 hevc 两条流（清晰度 id 相同），
+  /// 这里优先保留 avc1（兼容性最好），同编码再按码率取高者；
+  /// 音轨统一取码率最高的一条（DASH 的音轨与清晰度无关）。
+  static List<DashQuality> pickDashQualities(
+    List<dynamic> videos,
+    List<dynamic> audios,
+  ) {
+    final best = <int, _DashVideo>{};
+    for (final raw in videos) {
+      if (raw is! Map) continue;
+      final id = int.tryParse('${raw['id']}') ?? 0;
+      if (id <= 0) continue;
+      final url = '${raw['baseUrl'] ?? raw['base_url'] ?? ''}';
+      if (url.isEmpty) continue;
+      final codecs = '${raw['codecs'] ?? ''}';
+      final candidate = _DashVideo(
+        url: url,
+        bandwidth: int.tryParse('${raw['bandwidth']}') ?? 0,
+        avc: codecs.startsWith('avc'),
+      );
+      final current = best[id];
+      if (current == null ||
+          (candidate.avc && !current.avc) ||
+          (candidate.avc == current.avc &&
+              candidate.bandwidth > current.bandwidth)) {
+        best[id] = candidate;
+      }
+    }
+
+    var audioUrl = '';
+    var audioBandwidth = -1;
+    for (final raw in audios) {
+      if (raw is! Map) continue;
+      final url = '${raw['baseUrl'] ?? raw['base_url'] ?? ''}';
+      if (url.isEmpty) continue;
+      final bandwidth = int.tryParse('${raw['bandwidth']}') ?? 0;
+      if (bandwidth > audioBandwidth) {
+        audioBandwidth = bandwidth;
+        audioUrl = url;
+      }
+    }
+
+    final ids = best.keys.toList()..sort((a, b) => b.compareTo(a));
+    return [
+      for (final id in ids)
+        DashQuality(
+          id: id,
+          videoUrl: best[id]!.url,
+          audioUrl: audioUrl,
+          bandwidth: best[id]!.bandwidth,
+        ),
+    ];
+  }
+
   static String mixinKey(String imgKey, String subKey) {
     final source = imgKey + subKey;
     final buffer = StringBuffer();
@@ -222,31 +315,72 @@ class BilibiliParser {
     final mixin = await _wbiMixin();
     final urls = <String>[];
     final labels = <String>[];
+    final audios = <String>[];
     final diag = <String>[];
     final cookie = await BilibiliSession.cookie();
     diag.add(
       'bvid=$bvid login=${cookie != null} cookieLen=${cookie?.length ?? 0}',
     );
 
-    // 登录后 1080P 生效；未登录 qn=80 会被降级为 64
     var authExpired = false;
     final seenQuality = <String>{};
-    for (final qn in [80, 64, 16]) {
+
+    // 1080P 只在 DASH 通道下发：`fnval=1`（durl 单文件）即使登录也被服务端卡在 720P，
+    // 所以最高档走 dash（视频流 + 音轨，下载后由原生 MediaMuxer 合流），
+    // 720P / 360P 仍走 durl 单文件，省一次合流、下载更快。
+    var dashPicks = <DashQuality>[];
+    try {
+      final res = await _playUrl(
+        bvid: bvid,
+        cid: '$cid',
+        qn: 120,
+        fnval: _dashFnval,
+        mixin: mixin,
+      );
+      final code = '${res['code']}';
+      if (code != '0') {
+        diag.add('dash code=$code');
+        if (code == '-101') authExpired = true;
+      } else {
+        final data = res['data'];
+        final dash = data is Map ? data['dash'] : null;
+        if (dash is Map) {
+          dashPicks = pickDashQualities(
+            (dash['video'] as List?) ?? const [],
+            (dash['audio'] as List?) ?? const [],
+          );
+          diag.add(
+            'dash ids=${dashPicks.map((e) => e.id).join('/')} '
+            'audio=${dashPicks.isNotEmpty && dashPicks.first.audioUrl.isNotEmpty} '
+            'accept=${data['accept_quality']}',
+          );
+        } else {
+          diag.add('dash empty');
+        }
+      }
+    } catch (e) {
+      diag.add('dash err=${_short(e)}');
+    }
+
+    // 只取最高一档 dash（1080P 及以上）；低于 720P 交给 durl 单文件
+    for (final pick in dashPicks) {
+      if (pick.id < 80 || pick.audioUrl.isEmpty) continue;
+      final key = '${pick.id}';
+      if (!seenQuality.add(key)) break;
+      urls.add(pick.videoUrl);
+      labels.add(_qualityLabel(key));
+      audios.add(pick.audioUrl);
+      break;
+    }
+
+    for (final qn in [64, 16]) {
       try {
-        final query = signQuery(
-          {
-            'bvid': bvid,
-            'cid': '$cid',
-            'qn': '$qn',
-            'fnval': '1',
-            'fnver': '0',
-            'fourk': '1',
-          },
-          mixin,
-          DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        );
-        final res = await _getJson(
-          'https://api.bilibili.com/x/player/wbi/playurl?$query',
+        final res = await _playUrl(
+          bvid: bvid,
+          cid: '$cid',
+          qn: qn,
+          fnval: _durlFnval,
+          mixin: mixin,
         );
         final code = '${res['code']}';
         if (code != '0') {
@@ -274,9 +408,20 @@ class BilibiliParser {
         if (url.isEmpty || urls.contains(url)) continue;
         urls.add(url);
         labels.add(_qualityLabel(quality));
+        audios.add('');
       } catch (e) {
-        final text = e.toString();
-        diag.add('qn$qn err=${text.length > 60 ? text.substring(0, 60) : text}');
+        diag.add('qn$qn err=${_short(e)}');
+      }
+    }
+
+    // durl 完全拿不到（部分受限视频只有 dash）时兜底：把 dash 的档位全放出来
+    if (urls.isEmpty) {
+      for (final pick in dashPicks) {
+        final key = '${pick.id}';
+        if (!seenQuality.add(key)) continue;
+        urls.add(pick.videoUrl);
+        labels.add(_qualityLabel(key));
+        audios.add(pick.audioUrl);
       }
     }
 
@@ -298,6 +443,7 @@ class BilibiliParser {
       coverUrl: '${info['pic'] ?? ''}',
       durationMs: (int.tryParse('${info['duration'] ?? 0}') ?? 0) * 1000,
       videoUrls: urls,
+      audioUrls: audios,
       qualityNames: labels,
     );
   }
@@ -336,4 +482,35 @@ class BilibiliParser {
         return '原画';
     }
   }
+}
+
+/// DASH 通道里的一档视频流。
+///
+/// 视频流本身**不含音轨**，下载后必须与 [audioUrl] 合流才能得到可播放的成片
+/// （B 站 1080P 起只走 DASH；720P 及以下仍有 durl 单文件）。
+class DashQuality {
+  const DashQuality({
+    required this.id,
+    required this.videoUrl,
+    required this.audioUrl,
+    required this.bandwidth,
+  });
+
+  /// 清晰度 id：120=4K / 116=1080P60 / 112=1080P+ / 80=1080P / 64=720P / 32=480P / 16=360P
+  final int id;
+  final String videoUrl;
+  final String audioUrl;
+  final int bandwidth;
+}
+
+class _DashVideo {
+  const _DashVideo({
+    required this.url,
+    required this.bandwidth,
+    required this.avc,
+  });
+
+  final String url;
+  final int bandwidth;
+  final bool avc;
 }

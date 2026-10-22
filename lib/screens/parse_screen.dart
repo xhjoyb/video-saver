@@ -198,6 +198,7 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
       title: result.displayTitle,
       fileName: result.fileName,
       url: quality.url,
+      audioUrl: quality.audioUrl,
       platform: result.platform,
       referer: switch (result.platform) {
         'bilibili' => 'https://www.bilibili.com/',

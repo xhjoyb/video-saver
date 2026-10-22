@@ -33,6 +33,26 @@ void main() {
       final map = build().toJson()..['status'] = 'unknown_state';
       expect(DownloadTask.fromJson(map)!.status, DownloadStatus.interrupted);
     });
+
+    test('DASH 音轨地址随任务持久化（中断恢复后仍能合流）', () {
+      final task = DownloadTask(
+        id: '2',
+        title: '标题',
+        fileName: 'f.mp4',
+        url: 'https://x/v.m4s',
+        platform: 'bilibili',
+        referer: 'https://www.bilibili.com/',
+        userAgent: 'UA',
+        awemeId: 'BV1xx',
+        audioUrl: 'https://x/a.m4s',
+      );
+      final back = DownloadTask.fromJson(task.toJson());
+      expect(back!.audioUrl, 'https://x/a.m4s');
+    });
+
+    test('普通单文件任务恢复后 audioUrl 为 null', () {
+      expect(DownloadTask.fromJson(build().toJson())!.audioUrl, isNull);
+    });
   });
 
   group('冷启动状态迁移', () {

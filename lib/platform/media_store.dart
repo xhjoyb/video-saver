@@ -37,6 +37,22 @@ class MediaStore {
     }
   }
 
+  /// 把 DASH 的视频流与音轨合流成单个 mp4。
+  ///
+  /// 原生 `MediaMuxer` 只做转封装（不解码），因此不引入 ffmpeg 依赖。
+  /// 失败时抛 [PlatformException]，由下载队列标记为失败。
+  static Future<void> muxAv(
+    String videoPath,
+    String audioPath,
+    String outPath,
+  ) async {
+    await _channel.invokeMethod<bool>('muxAv', {
+      'video': videoPath,
+      'audio': audioPath,
+      'out': outPath,
+    });
+  }
+
   static Future<bool> isSupported() async {
     try {
       final ok = await _channel.invokeMethod<bool>('isSupported');

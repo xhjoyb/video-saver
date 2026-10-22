@@ -104,4 +104,80 @@ void main() {
       expect(dirty.contains('q=abcdef'), isTrue);
     });
   });
+
+  group('DASH 档位挑选', () {
+    List<dynamic> videos() => [
+          {
+            'id': 64,
+            'baseUrl': 'https://cdn/720-hevc.m4s',
+            'bandwidth': 606319,
+            'codecs': 'hvc1.1.6.L120.90',
+          },
+          {
+            'id': 80,
+            'baseUrl': 'https://cdn/1080-avc.m4s',
+            'bandwidth': 1937193,
+            'codecs': 'avc1.640032',
+          },
+          {
+            'id': 80,
+            'baseUrl': 'https://cdn/1080-hevc.m4s',
+            'bandwidth': 1135443,
+            'codecs': 'hvc1.1.6.L150.90',
+          },
+          {
+            'id': 64,
+            'baseUrl': 'https://cdn/720-avc.m4s',
+            'bandwidth': 1002428,
+            'codecs': 'avc1.640028',
+          },
+          {
+            'id': 16,
+            'baseUrl': 'https://cdn/360-avc.m4s',
+            'bandwidth': 403579,
+            'codecs': 'avc1.64001E',
+          },
+        ];
+
+    List<dynamic> audios() => [
+          {'baseUrl': 'https://cdn/a-30216.m4s', 'bandwidth': 65723},
+          {'baseUrl': 'https://cdn/a-30280.m4s', 'bandwidth': 102659},
+        ];
+
+    test('按清晰度降序排列，同档位优先 avc1 而不是更高码率的 hevc', () {
+      final picks = BilibiliParser.pickDashQualities(videos(), audios());
+      expect(picks.map((e) => e.id).toList(), [80, 64, 16]);
+      expect(picks.first.videoUrl, 'https://cdn/1080-avc.m4s');
+      expect(picks[1].videoUrl, 'https://cdn/720-avc.m4s');
+    });
+
+    test('每档都挂最高码率音轨（DASH 音轨与清晰度无关）', () {
+      final picks = BilibiliParser.pickDashQualities(videos(), audios());
+      expect(
+        picks.every((e) => e.audioUrl == 'https://cdn/a-30280.m4s'),
+        isTrue,
+      );
+    });
+
+    test('没有音轨时 audioUrl 为空，调用方会回落到 durl 单文件', () {
+      final picks = BilibiliParser.pickDashQualities(videos(), const []);
+      expect(picks.first.audioUrl, isEmpty);
+    });
+
+    test('空输入返回空列表', () {
+      expect(BilibiliParser.pickDashQualities(const [], const []), isEmpty);
+    });
+
+    test('缺 id / 缺 url / 非 Map 的脏数据都被跳过', () {
+      final picks = BilibiliParser.pickDashQualities(
+        [
+          {'id': 0, 'baseUrl': 'https://cdn/zero.m4s'},
+          {'id': 80},
+          'not-a-map',
+        ],
+        const [],
+      );
+      expect(picks, isEmpty);
+    });
+  });
 }

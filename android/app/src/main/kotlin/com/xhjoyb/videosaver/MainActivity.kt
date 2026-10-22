@@ -2,6 +2,10 @@ package com.xhjoyb.videosaver
 
 import android.content.ContentValues
 import android.content.Intent
+import android.media.MediaCodec
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.media.MediaMuxer
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -11,9 +15,15 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.nio.ByteBuffer
 
 class MainActivity : FlutterActivity() {
     private val channelName = "videosaver/media"
+
+    companion object {
+        /** 单个样本上限：1080P / 4K 关键帧远小于 8MB */
+        private const val MAX_SAMPLE_SIZE = 8 * 1024 * 1024
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -24,6 +34,7 @@ class MainActivity : FlutterActivity() {
                     "saveImage" -> handleSave(call, result, isImage = true)
                     "isSupported" -> result.success(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
                     "openMedia" -> handleOpen(call, result)
+                    "muxAv" -> handleMux(call, result)
                     "startDownloadService" -> {
                         DownloadForegroundService.start(
                             this,
@@ -107,6 +118,114 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             result.success(false)
         }
+    }
+
+    /**
+     * DASH 音视频合流：B 站 1080P 起只有分离的视频流与音轨。
+     * 这里用 MediaExtractor + MediaMuxer 做纯转封装（不解码、不引入 ffmpeg 依赖）。
+     */
+    private fun handleMux(call: MethodCall, result: MethodChannel.Result) {
+        val video = call.argument<String>("video")
+        val audio = call.argument<String>("audio")
+        val out = call.argument<String>("out")
+        if (video.isNullOrBlank() || audio.isNullOrBlank() || out.isNullOrBlank()) {
+            result.error("bad_args", "video/audio/out are required", null)
+            return
+        }
+        Thread {
+            try {
+                muxAv(video, audio, out)
+                runOnUiThread { result.success(true) }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    result.error(
+                        "mux_failed",
+                        e.javaClass.simpleName + ": " + (e.message ?: ""),
+                        null,
+                    )
+                }
+            }
+        }.apply { isDaemon = true }.start()
+    }
+
+    private fun muxAv(videoPath: String, audioPath: String, outPath: String) {
+        val outFile = File(outPath)
+        if (outFile.exists()) outFile.delete()
+        outFile.parentFile?.mkdirs()
+
+        var videoExtractor: MediaExtractor? = null
+        var audioExtractor: MediaExtractor? = null
+        var muxer: MediaMuxer? = null
+        try {
+            val vEx = MediaExtractor().apply { setDataSource(videoPath) }
+            val aEx = MediaExtractor().apply { setDataSource(audioPath) }
+            videoExtractor = vEx
+            audioExtractor = aEx
+
+            val videoTrack = firstTrack(vEx, "video/")
+            val audioTrack = firstTrack(aEx, "audio/")
+            require(videoTrack >= 0) { "视频流缺失" }
+            require(audioTrack >= 0) { "音频流缺失" }
+
+            vEx.selectTrack(videoTrack)
+            aEx.selectTrack(audioTrack)
+
+            val out = MediaMuxer(outPath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+            muxer = out
+            val outVideoTrack = out.addTrack(vEx.getTrackFormat(videoTrack))
+            val outAudioTrack = out.addTrack(aEx.getTrackFormat(audioTrack))
+            out.start()
+
+            val buffer = ByteBuffer.allocateDirect(MAX_SAMPLE_SIZE)
+            val info = MediaCodec.BufferInfo()
+            // 两条流的起始时间不一定都是 0，统一按各自首个样本对齐
+            val videoBase = vEx.sampleTime.coerceAtLeast(0L)
+            val audioBase = aEx.sampleTime.coerceAtLeast(0L)
+
+            var videoTime = vEx.sampleTime
+            var audioTime = aEx.sampleTime
+            while (videoTime >= 0 || audioTime >= 0) {
+                // 按时间戳交错写入，避免输出文件整段视频在前、整段音频在后
+                if (audioTime < 0 || (videoTime >= 0 && videoTime <= audioTime)) {
+                    videoTime = writeSample(vEx, out, outVideoTrack, buffer, info, videoBase)
+                } else {
+                    audioTime = writeSample(aEx, out, outAudioTrack, buffer, info, audioBase)
+                }
+            }
+        } finally {
+            try { muxer?.stop() } catch (_: Exception) {}
+            try { muxer?.release() } catch (_: Exception) {}
+            try { videoExtractor?.release() } catch (_: Exception) {}
+            try { audioExtractor?.release() } catch (_: Exception) {}
+        }
+    }
+
+    /** 写入一个样本，返回下一样本的时间戳（无更多样本为 -1） */
+    private fun writeSample(
+        extractor: MediaExtractor,
+        muxer: MediaMuxer,
+        track: Int,
+        buffer: ByteBuffer,
+        info: MediaCodec.BufferInfo,
+        baseTimeUs: Long,
+    ): Long {
+        val size = extractor.readSampleData(buffer, 0)
+        if (size < 0) return -1
+        info.offset = 0
+        info.size = size
+        info.presentationTimeUs = (extractor.sampleTime - baseTimeUs).coerceAtLeast(0L)
+        info.flags = extractor.sampleFlags
+        muxer.writeSampleData(track, buffer, info)
+        extractor.advance()
+        return extractor.sampleTime
+    }
+
+    private fun firstTrack(extractor: MediaExtractor, mimePrefix: String): Int {
+        for (i in 0 until extractor.trackCount) {
+            val mime = extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME) ?: continue
+            if (mime.startsWith(mimePrefix)) return i
+        }
+        return -1
     }
 
     /**

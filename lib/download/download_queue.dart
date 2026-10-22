@@ -23,6 +23,7 @@ class DownloadTask {
     required this.referer,
     required this.userAgent,
     required this.awemeId,
+    this.audioUrl,
   });
 
   final String id;
@@ -33,6 +34,9 @@ class DownloadTask {
   final String referer;
   final String? userAgent;
   final String awemeId;
+
+  /// DASH 音轨地址：非空表示 [url] 是纯视频流，下载后需要与音轨合流
+  final String? audioUrl;
 
   DownloadStatus status = DownloadStatus.queued;
   double progress = 0;
@@ -72,6 +76,7 @@ class DownloadTask {
         'referer': referer,
         'userAgent': userAgent,
         'awemeId': awemeId,
+        'audioUrl': audioUrl,
         'status': status.name,
         'attempts': attempts,
       };
@@ -80,6 +85,7 @@ class DownloadTask {
     final url = '${m['url'] ?? ''}';
     if (url.isEmpty) return null;
     final ua = (m['userAgent'] as String?)?.trim() ?? '';
+    final audio = (m['audioUrl'] as String?)?.trim() ?? '';
     final task = DownloadTask(
       id: '${m['id'] ?? DateTime.now().microsecondsSinceEpoch}',
       title: '${m['title'] ?? ''}',
@@ -89,6 +95,7 @@ class DownloadTask {
       referer: '${m['referer'] ?? 'https://www.douyin.com/'}',
       userAgent: ua.isEmpty ? null : ua,
       awemeId: '${m['awemeId'] ?? ''}',
+      audioUrl: audio.isEmpty ? null : audio,
     );
     final status = DownloadStatus.values.firstWhere(
       (e) => e.name == '${m['status']}',
@@ -178,6 +185,7 @@ class DownloadQueue extends ChangeNotifier {
     required String platform,
     required String referer,
     String? userAgent,
+    String? audioUrl,
     required String awemeId,
   }) {
     // 同一视频已在队列（排队/下载中）时不重复入队
@@ -197,6 +205,7 @@ class DownloadQueue extends ChangeNotifier {
       referer: referer,
       userAgent: userAgent,
       awemeId: awemeId,
+      audioUrl: audioUrl,
     );
     _tasks.add(task);
     _trim();
@@ -245,23 +254,44 @@ class DownloadQueue extends ChangeNotifier {
     _persist();
     unawaited(_syncNotification(force: true));
 
-    File? file;
+    final temps = <File>[];
     try {
-      file = await DownloadService.download(
+      final audioUrl = (task.audioUrl ?? '').trim();
+      final needsMux = audioUrl.isNotEmpty;
+      // B 站 1080P 走 DASH：视频流本身无音轨，先下视频再下音轨，
+      // 最后由原生 MediaMuxer 合流成单个 mp4（无需 ffmpeg 依赖）
+      var file = await DownloadService.download(
         task.url,
-        task.fileName,
+        needsMux ? '${task.fileName}.v.mp4' : task.fileName,
         referer: task.referer,
         userAgent: task.userAgent,
-        onProgress: (received, total) {
-          if (total <= 0) return;
-          final progress = received / total;
-          if ((progress - task.progress).abs() >= 0.01) {
-            task.progress = progress;
-            notifyListeners();
-            unawaited(_syncNotification(progress: (progress * 100).round()));
-          }
-        },
+        onProgress: (received, total) => _reportProgress(
+          task,
+          received,
+          total,
+          0.0,
+          needsMux ? 0.85 : 1.0,
+        ),
       );
+      temps.add(file);
+
+      if (needsMux) {
+        final audio = await DownloadService.download(
+          audioUrl,
+          '${task.fileName}.a.m4a',
+          referer: task.referer,
+          userAgent: task.userAgent,
+          onProgress: (received, total) =>
+              _reportProgress(task, received, total, 0.85, 0.95),
+        );
+        temps.add(audio);
+        final merged = File('${file.parent.path}/${task.fileName}');
+        await MediaStore.muxAv(file.path, audio.path, merged.path);
+        temps.add(merged);
+        file = merged;
+        task.progress = 0.98;
+        notifyListeners();
+      }
 
       final uri = await MediaStore.saveVideo(file, task.fileName);
       if (uri == null) {
@@ -286,15 +316,32 @@ class DownloadQueue extends ChangeNotifier {
       }
       notifyListeners();
     } finally {
-      if (file != null) {
+      // 视频流 / 音轨 / 合流产物都是临时文件，成功或失败都要清掉
+      for (final temp in temps) {
         try {
-          await file.delete();
+          await temp.delete();
         } catch (_) {}
       }
       _persist();
       _pump();
       unawaited(_syncNotification(force: true));
     }
+  }
+
+  /// 分段进度：[from]–[to] 映射为任务进度的对应区间
+  void _reportProgress(
+    DownloadTask task,
+    int received,
+    int total,
+    double from,
+    double to,
+  ) {
+    if (total <= 0) return;
+    final value = (from + (received / total) * (to - from)).clamp(0.0, 1.0).toDouble();
+    if ((value - task.progress).abs() < 0.005) return;
+    task.progress = value;
+    notifyListeners();
+    unawaited(_syncNotification(progress: (value * 100).round()));
   }
 
   /// 仅允许取消尚未开始的任务（正在传输的连接暂不支持中断）
