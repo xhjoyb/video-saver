@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart' as crypto;
+import 'package:path_provider/path_provider.dart';
 
 import '../platform/bilibili_session.dart';
 import 'douyin_parser.dart';
@@ -221,6 +222,11 @@ class BilibiliParser {
     final mixin = await _wbiMixin();
     final urls = <String>[];
     final labels = <String>[];
+    final diag = <String>[];
+    final cookie = await BilibiliSession.cookie();
+    diag.add(
+      'bvid=$bvid login=${cookie != null} cookieLen=${cookie?.length ?? 0}',
+    );
 
     // 登录后 1080P 生效；未登录 qn=80 会被降级为 64
     var authExpired = false;
@@ -244,15 +250,23 @@ class BilibiliParser {
         );
         final code = '${res['code']}';
         if (code != '0') {
+          diag.add('qn$qn code=$code');
           if (code == '-101') authExpired = true;
           continue;
         }
         final data = res['data'];
-        if (data is! Map) continue;
+        if (data is! Map) {
+          diag.add('qn$qn no-data');
+          continue;
+        }
         final durl = (data['durl'] as List?) ?? const [];
-        if (durl.isEmpty) continue;
+        if (durl.isEmpty) {
+          diag.add('qn$qn durl-empty');
+          continue;
+        }
         final first = durl.first;
         final quality = '${data['quality'] ?? qn}';
+        diag.add('qn$qn->q$quality accept=${data['accept_quality']}');
         // 按码率档位去重：不同 qn 请求同一档时，返回的直链签名参数不同，
         // 只比 URL 字符串会重复出两个「720P」
         if (!seenQuality.add(quality)) continue;
@@ -260,10 +274,13 @@ class BilibiliParser {
         if (url.isEmpty || urls.contains(url)) continue;
         urls.add(url);
         labels.add(_qualityLabel(quality));
-      } catch (_) {
-        // 单档失败不影响其它档
+      } catch (e) {
+        final text = e.toString();
+        diag.add('qn$qn err=${text.length > 60 ? text.substring(0, 60) : text}');
       }
     }
+
+    await _writeDiag(diag);
 
     if (urls.isEmpty && authExpired) {
       throw const FormatException('B 站登录已过期，请到「设置 → B 站登录」重新登录');
@@ -283,6 +300,20 @@ class BilibiliParser {
       videoUrls: urls,
       qualityNames: labels,
     );
+  }
+
+  /// 把每次请求的服务端返回写入 app 目录（bili_diag.log），
+  /// 用于排查「登录了仍拿不到 1080P」是 cookie 未生效还是服务端只给 720P
+  static Future<void> _writeDiag(List<String> lines) async {
+    try {
+      final dir = await getExternalStorageDirectory();
+      if (dir == null) return;
+      final stamp = DateTime.now().toIso8601String();
+      await File('${dir.path}/bili_diag.log').writeAsString(
+        '$stamp\n${lines.join('\n')}\n\n',
+        mode: FileMode.append,
+      );
+    } catch (_) {}
   }
 
   static String _qualityLabel(String quality) {

@@ -159,6 +159,15 @@ class ParseController extends ChangeNotifier {
       return;
     }
     for (var attempt = 1; attempt <= 3; attempt++) {
+      if (attempt > 1) {
+        // 页面可能已被反爬打崩，重新加载后再试（_probeStarted 已置位，不会重入）
+        try {
+          await web.loadRequest(
+            Uri.parse('https://www.iesdouyin.com/share/video/$id/'),
+          );
+          await Future.delayed(const Duration(milliseconds: 1500));
+        } catch (_) {}
+      }
       try {
         await web.runJavaScriptReturningResult(DouyinParser.detailJs(id));
         final data = await _waitResult();
@@ -167,7 +176,9 @@ class ParseController extends ChangeNotifier {
             await Future.delayed(const Duration(milliseconds: 900));
             continue;
           }
-          _fail('解析超时：页面未返回数据');
+          final url = await web.currentUrl() ?? '';
+          final shown = url.length > 70 ? url.substring(0, 70) : url;
+          _fail('解析超时：页面未返回数据（当前页面：$shown）');
           return;
         }
         if (data['error'] != null) {
@@ -203,7 +214,8 @@ class ParseController extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>?> _waitResult() async {
-    for (var i = 0; i < 18; i++) {
+    // 30 × 400ms = 12s，给慢网/大 JSON 留足时间
+    for (var i = 0; i < 30; i++) {
       await Future.delayed(const Duration(milliseconds: 400));
       try {
         final raw = await web.runJavaScriptReturningResult('window.__dyResult || ""');
