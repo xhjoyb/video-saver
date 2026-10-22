@@ -6,7 +6,7 @@
 - 技术栈：Flutter 3.24.5 + Material 3，Kotlin 原生壳（MethodChannel）
 - Android：minSdk 26 / targetSdk 34，仅 arm64 出包
 - 构建：GitHub Actions 云端构建 → Release
-- 当前基线：**`flutter-59`**（commit `5aa1125a`，App 内版本 `0.6.0 (build 6)`），语义 tag **`v0.6.0`**（上一档 `v0.5.0-kuaishou`）
+- 当前基线：**`flutter-66`**（commit `1745579e`，App 内版本 `0.7.0 (build 7)`），语义 tag **`v0.7.0`**（上一档 `v0.6.0`）
 - 仓库：**public** — https://github.com/xhjoyb/video-saver
 
 ## 当前能力
@@ -194,6 +194,7 @@ App 内开发者页面：**设置 → 开发者 → 解析探针**，把 WebView
 | 无断点续传 | 中断后从头重下 | 记录已下载字节 + `Range` 续传；B 站直链有时效，过期需重新解析 |
 | 通知无操作按钮 | 通知栏只能看进度，不能暂停/取消 | 给通知加 `PendingIntent` action，广播回传队列控制 |
 | B 站 1080P 需合流 | DASH 通道音视频分离，成片由原生 `MediaMuxer` 转封装得到 | ✅ 已解决（`flutter-66`）：登录后可选 1080P；未登录仍 720P 封顶 |
+| 合流产物负 DTS | 视频轨首包 DTS 被 `MediaMuxer` 压到 −0.5s（源流 −0.13s）；PTS 与源逐包一致、`start_time=0`、音视频时长差 1.6ms、全片解码零告警，实测 ffmpeg 与系统播放正常 | 仅当个别播放器出现声画不同步时再处理：自写 DTS / 跳过 elst 推导（**不默认执行**） |
 | 番剧 / PGC 受限 | 版权内容拿不到 `playurl`，提示「可能需要登录或视频受限」 | 需大会员登录态；合流能力已具备，档位受账号等级限制 |
 | 图集仍走同步保存 | 图集不入队，无并发与自动重试 | 把图集拆成多任务入队，任务模型支持图片类型 |
 | 小红书 WebView 被风控 | 打开笔记页被 302 到 `/404?source=/404/sec_…`；已登录、注入浏览器特征伪装后仍被拦 | 需真实浏览器指纹或官方开放 API，暂列不支持 |
@@ -259,7 +260,8 @@ App 内开发者页面：**设置 → 开发者 → 解析探针**，把 WebView
 | `v0.4.0-bilibili` | `166de112` | `flutter-45` | B 站接入：wbi 签名 / BV 与短链 / 720P+360P / PC UA 下载 |
 | `v0.5.0` | `1ad8904c` | `flutter-47` | 下载队列 + 后台下载（前台服务 / 通知进度 / WakeLock） |
 | `v0.5.0-kuaishou` | `459ac1a9` | `flutter-48` | 快手接入：移动分享页 SSR 直出 mp4 / 短链与 photoId 识别 |
-| `v0.6.0` | `5aa1125a` | `flutter-59` | 0.6.0 正式版：三平台 + 下载队列 + 后台下载 + 历史增强（**当前基线**） |
+| `v0.6.0` | `5aa1125a` | `flutter-59` | 0.6.0 正式版：三平台 + 下载队列 + 后台下载 + 历史增强 |
+| `v0.7.0` | `1745579e` | `flutter-66` | **B 站真正解锁 1080P**：DASH（`fnval=4048`）+ 原生 MediaMuxer 合流；确认 durl 通道封顶 720P（**当前基线**） |
 
 回退方式：用 `workflow_dispatch` 指定目标 commit 触发 `flutter.yml`，约 15–25 分钟重新出包。
 Release 与构建物只增不删，清理必须由需求方明确指定（范围 + 数量）。
