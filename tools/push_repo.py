@@ -37,6 +37,7 @@ EXCLUDED_DIRS = {
 
 EXCLUDED_SUFFIXES = (
     ".apk", ".aab", ".jks", ".keystore", ".p12", ".ap_", ".dex", ".iml",
+    ".log", ".txt",
 )
 
 EXCLUDED_FILES = {
