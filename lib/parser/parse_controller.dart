@@ -38,10 +38,18 @@ class ParseController extends ChangeNotifier {
           },
           onPageStarted: (url) {
             // 小红书风控会检测自动化特征，页面一开始就注入伪装脚本
-            if (_mode != 'xhs') return;
-            web
-                .runJavaScript(XiaohongshuParser.browserMaskJs)
-                .catchError((Object _) {});
+            if (_mode == 'xhs') {
+              web
+                  .runJavaScript(XiaohongshuParser.browserMaskJs)
+                  .catchError((Object _) {});
+              return;
+            }
+            // 抖音：页面一启动就挂采集钩子，旁路捕获页面自己发出的 detail 响应
+            if (_mode == 'douyin') {
+              web
+                  .runJavaScript(DouyinParser.captureJs)
+                  .catchError((Object _) {});
+            }
           },
           onWebResourceError: (e) {
             if (_stage == ParseStage.loading && e.isForMainFrame == true) {
@@ -164,10 +172,20 @@ class ParseController extends ChangeNotifier {
     // 这种自相矛盾的环境下页面 fetch 会一直 pending（既不成功也不报错）。
     final desktopUa = DouyinParser.userAgent;
     final nativeUa = await WebViewEnv.defaultUserAgent();
-    final attempts = <({String url, String ua})>[
-      (url: 'https://www.douyin.com/video/$id', ua: desktopUa),
-      (url: 'https://www.douyin.com/video/$id', ua: nativeUa ?? desktopUa),
-      (url: 'https://www.iesdouyin.com/share/video/$id/', ua: desktopUa),
+    // 前两次：被动采集（页面自己发请求，签名由页面 SDK 负责，成功率最高）
+    // 最后一次：主动 fetch 兜底（裸请求可能 403，但能给明确错误）
+    final attempts = <({String url, String ua, bool capture})>[
+      (url: 'https://www.douyin.com/video/$id', ua: desktopUa, capture: true),
+      (
+        url: 'https://www.douyin.com/video/$id',
+        ua: nativeUa ?? desktopUa,
+        capture: true
+      ),
+      (
+        url: 'https://www.iesdouyin.com/share/video/$id/',
+        ua: desktopUa,
+        capture: false
+      ),
     ];
 
     for (var i = 0; i < attempts.length; i++) {
@@ -185,11 +203,18 @@ class ParseController extends ChangeNotifier {
       }
       final startedAt = DateTime.now();
       try {
-        await web.runJavaScriptReturningResult(DouyinParser.detailJs(id));
-        final data = await _waitResult();
+        Map<String, dynamic>? data;
+        if (attempt.capture) {
+          // 采集钩子已在 onPageStarted 注入，这里只等页面自己的请求回填结果
+          await Future.delayed(const Duration(milliseconds: 1200));
+          data = await _waitResult();
+        } else {
+          await web.runJavaScriptReturningResult(DouyinParser.detailJs(id));
+          data = await _waitResult();
+        }
         final elapsed = DateTime.now().difference(startedAt).inMilliseconds;
         await DiagLog.write('douyin_diag.log', [
-          'attempt=$no ua=${_short(attempt.ua, 48)} url=${attempt.url}',
+          'attempt=$no capture=${attempt.capture} ua=${_short(attempt.ua, 48)} url=${attempt.url}',
           'elapsed=${elapsed}ms result=${_short(data == null ? '' : jsonEncode(data), 260)}',
         ]);
         if (data == null) {

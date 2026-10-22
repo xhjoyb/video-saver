@@ -66,6 +66,7 @@ class DouyinParser {
   /// - 结果里附带 UA / Client Hints / visibilityState / 耗时，便于区分环境问题。
   static String detailJs(String awemeId) => '''
 (function () {
+  if (window.__dyResult) return 'have';
   var t0 = Date.now();
   function env() {
     return {
@@ -170,6 +171,84 @@ class DouyinParser {
     viaXhr();
   }
   return 'kicked';
+})()
+''';
+
+  /// 页面内「旁路采集」：拦截页面自己的 detail 请求，把响应存进 `__dyResult`
+  ///
+  /// 为什么不自己发请求：`/aweme/v1/web/aweme/detail/` 需要页面 SDK 生成
+  /// `a_bogus` 并带 `msToken` 等指纹，裸 `fetch` 必然 403。页面自己渲染视频时
+  /// 一定会发一次请求，这里只挂代理取响应，不参与签名，成功率等于正常浏览。
+  static String get captureJs => r'''
+(function () {
+  if (window.__dyHooked) return 'ok';
+  window.__dyHooked = true;
+  if (!window.__dyResult) window.__dyResult = '';
+
+  function pick(text) {
+    try {
+      var j = JSON.parse(text);
+      var a = j && j.aweme_detail;
+      if (!a) return;
+      var v = a.video || {};
+      var play = (v.play_addr && v.play_addr.url_list) || [];
+      var cover = ((v.cover && v.cover.url_list) || [''])[0] || '';
+      var imgs = [];
+      if (a.images && a.images.length) {
+        imgs = a.images.map(function (it) { return ((it.url_list || [''])[0]); });
+      } else if (a.image_post_info && a.image_post_info.images && a.image_post_info.images.length) {
+        imgs = a.image_post_info.images.map(function (it) { return ((it.url_list || [''])[0]); });
+      }
+      window.__dyResult = JSON.stringify({
+        id: a.aweme_id || '',
+        desc: a.desc || '',
+        author: (a.author && a.author.nickname) || '',
+        cover: cover,
+        duration: v.duration || 0,
+        play: play,
+        images: imgs,
+        via: 'page'
+      });
+    } catch (e) {}
+  }
+
+  var of = window.fetch;
+  if (of) {
+    window.fetch = function () {
+      var url = String((arguments[0] && arguments[0].url) || arguments[0] || '');
+      var p = of.apply(this, arguments);
+      try {
+        if (url.indexOf('aweme/detail') >= 0) {
+          p.then(function (r) {
+            try { r.clone().text().then(pick).catch(function () {}); } catch (e) {}
+          }).catch(function () {});
+        }
+      } catch (e) {}
+      return p;
+    };
+  }
+
+  try {
+    var open = XMLHttpRequest.prototype.open;
+    var send = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function (m, u) {
+      try { this.__dyUrl = String(u || ''); } catch (e) {}
+      return open.apply(this, arguments);
+    };
+    XMLHttpRequest.prototype.send = function () {
+      var self = this;
+      try {
+        if (String(self.__dyUrl || '').indexOf('aweme/detail') >= 0) {
+          self.addEventListener('load', function () {
+            try { pick(self.responseText || ''); } catch (e) {}
+          });
+        }
+      } catch (e) {}
+      return send.apply(this, arguments);
+    };
+  } catch (e) {}
+
+  return 'ok';
 })()
 ''';
 }

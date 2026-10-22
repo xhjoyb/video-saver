@@ -106,19 +106,19 @@
 
 结论：不是服务端拒绝（被拒会留下 403 / `Blocked by…` 内容），而是**页面里的请求挂死**；最可能是「UA 与 Client Hints 不一致」这类环境矛盾，叠加分享页 302 带来的 `previous_page` 参数。
 
-`flutter-67` 的修法（逐层尝试，任一层成功即止）：
+`flutter-67`：先修「请求挂死」——`fetch` 加 6s 超时 + XHR 兜底，结果里带 `ua / adt / vis / 耗时`，并写 `douyin_diag.log`。真机回归后变成了**明确的 403**（请求已经发出，但裸请求没有 `a_bogus` 签名），于是：
 
-| 层 | URL | UA |
+`flutter-68`：**不再自己发请求**，改成旁路采集页面自己的请求：
+
+| 层 | 做法 | 说明 |
 |---|---|---|
-| 1 | `https://www.douyin.com/video/{id}`（直连，少一跳 302） | Windows Chrome 120 |
-| 2 | 同上 | **WebView 真实 UA**（原生 `WebSettings.getDefaultUserAgent`，与 CH 一致） |
-| 3 | `https://www.iesdouyin.com/share/video/{id}/`（旧路径兜底） | Windows Chrome 120 |
+| 1 | 页面开始加载就注入采集钩子（`onPageStarted`），代理 `fetch` / `XMLHttpRequest`，命中 `aweme/detail` 就把响应解析进 `__dyResult` | 签名由页面 SDK 自己算，成功率等于正常浏览 |
+| 2 | 直连 `www.douyin.com/video/{id}` + **WebView 真实 UA** 再来一次 | 排除 UA / Client Hints 不一致的影响 |
+| 3 | 旧分享页路径 + 主动 `fetch` 兜底 | 只为给出明确错误信息（可能是 403） |
 
-同时：
-
-- 页面内 `fetch` 加 **6s AbortController 超时**，失败/超时后用 **XMLHttpRequest 兜底**再打一次；
-- 结果里附带 `ua / adt(ClientHints 平台) / visibilityState / 耗时`，失败时能直接看出是不是环境问题；
-- 每次尝试写 `Android/data/<包名>/files/douyin_diag.log`（只记 UA/耗时/结果摘要，不含 cookie 值），以后不挂 Frida 也能定位。
+- 采集钩子幂等（`__dyHooked`），页面重载不会重复包装；
+- 主动兜底前先看 `__dyResult` 是否已有结果，避免把成功结果覆盖成 403；
+- 每次尝试写 `douyin_diag.log`（含 `capture=true/false`、UA、耗时、结果摘要，不含 cookie 值）。
 
 ## B 站清晰度链路（`flutter-66` 定论）
 
@@ -279,6 +279,7 @@ App 内开发者页面：**设置 → 开发者 → 解析探针**，把 WebView
 | `flutter-65` | 诊断包：B 站把服务端码率写入 `bili_diag.log`；抖音重试前重载页面、延长等待、错误带当前 URL |
 | `flutter-66` | **B 站真正解锁 1080P**：确认 durl 通道封顶 720P，改走 DASH（`fnval=4048`）取 1080P，原生 `MediaMuxer` 合流音视频；版本升 `0.7.0` |
 | `flutter-67` | 抖音解析修复：直连视频页 + 真实 UA 兜底 + fetch 6s 超时/XHR 兜底 + `douyin_diag.log`；版本升 `0.7.1` |
+| `flutter-68` | 抖音改「旁路采集」：注入钩子抓页面自己的 `aweme/detail` 响应（不参与签名），兜底仍保留主动 fetch；版本升 `0.7.2` |
 
 ## 基线（回退点）
 
