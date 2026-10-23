@@ -184,11 +184,44 @@ class ParseController extends ChangeNotifier {
       }
       final startedAt = DateTime.now();
       try {
-        await web.runJavaScriptReturningResult(DouyinParser.detailJs(id));
-        final data = await _waitResult();
+        Map<String, dynamic>? data;
+        var lastState = '';
+        // Dart 侧驱动重试：隐藏 WebView 的 setTimeout 会被节流，绝不能靠 JS 定时器
+        for (var round = 0; round < 6 && data == null; round++) {
+          String state = '';
+          try {
+            final raw = await web.runJavaScriptReturningResult(
+              DouyinParser.detailJs(id),
+            );
+            state = raw.toString().replaceAll('"', '');
+          } catch (_) {}
+          lastState = state;
+          if (state == 'no_signer') {
+            await Future.delayed(const Duration(milliseconds: 400));
+            continue;
+          }
+          for (var i = 0; i < 4 && data == null; i++) {
+            await Future.delayed(const Duration(milliseconds: 400));
+            final text = await _readJs(DouyinParser.readResultJs);
+            if (text.isEmpty) continue;
+            try {
+              final decoded = jsonDecode(text);
+              if (decoded is Map<String, dynamic>) data = decoded;
+            } catch (_) {}
+          }
+        }
+        if (data == null) {
+          final errText = await _readJs(DouyinParser.readErrorJs);
+          if (errText.isNotEmpty) {
+            try {
+              final decoded = jsonDecode(errText);
+              if (decoded is Map<String, dynamic>) data = decoded;
+            } catch (_) {}
+          }
+        }
         final elapsed = DateTime.now().difference(startedAt).inMilliseconds;
         await DiagLog.write('douyin_diag.log', [
-          'attempt=$no ua=${_short(attempt.ua, 48)} url=${attempt.url}',
+          'attempt=$no state=$lastState ua=${_short(attempt.ua, 48)} url=${attempt.url}',
           'elapsed=${elapsed}ms result=${_short(data == null ? '' : jsonEncode(data), 260)}',
         ]);
         if (data == null) {
@@ -227,24 +260,20 @@ class ParseController extends ChangeNotifier {
   static String _short(String text, int max) =>
       text.length > max ? text.substring(0, max) : text;
 
-  Future<Map<String, dynamic>?> _waitResult() async {
-    // 35 × 400ms = 14s：JS 里最多等 5s 签名器 + 3 次签名请求
-    for (var i = 0; i < 35; i++) {
-      await Future.delayed(const Duration(milliseconds: 400));
-      try {
-        final raw = await web.runJavaScriptReturningResult('window.__dyResult || ""');
-        var text = raw.toString();
-        if (text.isEmpty || text == '""') continue;
-        if (text.startsWith('"') && text.endsWith('"')) {
-          text = jsonDecode(text) as String;
-        }
-        if (text.isEmpty) continue;
-        return jsonDecode(text) as Map<String, dynamic>;
-      } catch (_) {
-        // 单次读取失败继续轮询
+  /// 读一段页面 JS 的字符串结果（失败或空返回空串）
+  Future<String> _readJs(String script) async {
+    try {
+      final raw = await web.runJavaScriptReturningResult(script);
+      var text = raw.toString();
+      if (text.isEmpty || text == '""' || text == 'null') return '';
+      if (text.startsWith('"') && text.endsWith('"')) {
+        final decoded = jsonDecode(text);
+        return decoded is String ? decoded : '';
       }
+      return text;
+    } catch (_) {
+      return '';
     }
-    return null;
   }
 
   Future<void> _parseBilibili(String input, int seq) async {

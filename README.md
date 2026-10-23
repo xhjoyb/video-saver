@@ -129,7 +129,13 @@ window.byted_acrawler.frontierSign({ url, method: 'GET' })   // → {"X-Bogus":"
 fetch(detailUrl + '&X-Bogus=...', { credentials: 'include' }) // → 200 / 66,755 B / aweme_detail 完整
 ```
 
-裸请求（无签名）必然 403。实现：直连视频页 → 等 `byted_acrawler` 就绪（≤5s）→ 取 `X-Bogus` → fetch detail；失败换真实 UA / 分享页各重试一次，JS 内部再重试 3 次（700ms 间隔）。
+裸请求（无签名）必然 403。实现：直连视频页 → 等 `byted_acrawler` 就绪 → 取 `X-Bogus` → fetch detail。
+
+### flutter-70：去掉 JS 定时器（关键修复）
+
+`flutter-69` 真机仍超时，且日志里 `__dyResult` 一直为空（不是 403、不是报错）。定位为：**隐藏 WebView 被 Chrome 判定不可见，页面 `setTimeout` 被节流**，导致 JS 里 `setTimeout(attempt, 0)` 的首次请求根本没触发。
+
+修法：JS 只做「同步一次尝试」，重试全部搬到 Dart 侧（Dart `Timer` 不受 WebView 节流影响）：Dart 每 400ms 调一次 `detailJs` 并读 `window.__dyResult`，命中签名器才发请求，最多 6 轮；失败原因写 `window.__dyErr` 供最终报错使用。
 
 ## B 站清晰度链路（`flutter-66` 定论）
 
@@ -292,6 +298,7 @@ App 内开发者页面：**设置 → 开发者 → 解析探针**，把 WebView
 | `flutter-67` | 抖音解析修复：直连视频页 + 真实 UA 兜底 + fetch 6s 超时/XHR 兜底 + `douyin_diag.log`；版本升 `0.7.1` |
 | `flutter-68` | 抖音改「旁路采集」：注入钩子抓页面自己的 `aweme/detail` 响应（不参与签名），兜底仍保留主动 fetch；版本升 `0.7.2` |
 | `flutter-69` | 抖音改用页面自带签名器 `byted_acrawler.frontierSign` 取 `X-Bogus` 签自己的 detail 请求（实测 200 / 66KB）；版本升 `0.7.3` |
+| `flutter-70` | 抖音去掉 JS 定时器（隐藏 WebView 会节流 `setTimeout`，导致请求从未发出），改由 Dart 侧轮询驱动重试；版本升 `0.7.4` |
 
 ## 基线（回退点）
 

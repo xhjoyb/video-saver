@@ -56,32 +56,40 @@ class DouyinParser {
     }
   }
 
-  /// 在 web 页面上下文里请求 detail
+  /// 在 web 页面上下文里发一次 detail 请求（带页面自带的 X-Bogus 签名）
   ///
-  /// 关键（2026-10-23 真机验证）：抖音 web 端页面暴露了签名器
-  /// `window.byted_acrawler.frontierSign({url, method})`，返回 `{"X-Bogus": "..."}`。
-  /// 把该签名追加到 URL 后请求 detail，实测 **200 / 66KB / aweme_detail 完整**。
-  /// 裸请求（不带签名）会被判游客直接 403。
+  /// 关键事实（2026-10-23 真机验证）：
+  /// - 页面暴露 `window.byted_acrawler.frontierSign({url, method})`，返回 `{"X-Bogus": "…"}`
+  /// - 带上 `X-Bogus` 后请求 detail：200 / 66KB / `aweme_detail` 完整；裸请求必 403
   ///
-  /// 因此这里：等 `byted_acrawler` 就绪（最多 5s）→ 取 X-Bogus → fetch → 解析；
-  /// 失败重试最多 3 次；结果里附带 UA / Client Hints / 耗时便于排查。
+  /// 注意：**不要在这里用 setTimeout 调度**。隐藏 WebView 会被浏览器判定不可见，
+  /// 定时器被节流，回调可能几十秒都不触发（真机实测：`__dyResult` 一直为空）。
+  /// 因此本函数只做「同步一次尝试」：
+  /// - 返回 `have` 已有结果 / `no_signer` 签名器未就绪（由 Dart 侧稍后重试）/
+  ///   `inflight` 上一次请求还在飞 / `started` 已发出
+  /// - 成功写 `window.__dyResult`，失败写 `window.__dyErr`（都只写一次）
   static String detailJs(String awemeId) => '''
 (function () {
   if (window.__dyResult) return 'have';
-  var t0 = Date.now();
+  var c = window.byted_acrawler;
+  if (!c || typeof c.frontierSign !== 'function') return 'no_signer';
+  if (window.__dyInflight) return 'inflight';
+  window.__dyInflight = true;
+
   function env() {
     return {
       ua: String(navigator.userAgent).slice(0, 80),
-      adt: (navigator.userAgentData && navigator.userAgentData.platform) || 'none',
-      ms: Date.now() - t0
+      adt: (navigator.userAgentData && navigator.userAgentData.platform) || 'none'
     };
   }
-  function done(obj) { try { window.__dyResult = JSON.stringify(obj); } catch (e) {} }
-  function fail(tag, extra) {
-    var o = env();
-    o.error = tag;
-    o.body = String(extra || '').slice(0, 160);
-    done(o);
+  function done(o) { try { window.__dyResult = JSON.stringify(o); } catch (e) {} }
+  function err(tag, extra) {
+    try {
+      var o = env();
+      o.error = tag;
+      o.body = String(extra || '').slice(0, 160);
+      window.__dyErr = JSON.stringify(o);
+    } catch (e) {}
   }
   function parse(t) {
     var j = null;
@@ -117,44 +125,31 @@ class DouyinParser {
     + '&browser_version=120.0.0.0&browser_online=true&engine_name=Blink'
     + '&engine_version=120.0.0.0&os_name=Windows&os_version=10&platform=PC';
 
-  function signer() {
-    var c = window.byted_acrawler;
-    return (c && typeof c.frontierSign === 'function') ? c : null;
-  }
+  var url = base;
+  try {
+    var sig = c.frontierSign({ url: location.origin + base, method: 'GET' }) || {};
+    var q = Object.keys(sig).map(function (k) {
+      return k + '=' + encodeURIComponent(sig[k]);
+    }).join('&');
+    if (q) url = base + '&' + q;
+  } catch (e) {}
 
-  var tries = 0;
-  function attempt() {
-    tries++;
-    var c = signer();
-    if (!c) {
-      if (Date.now() - t0 < 5000) { setTimeout(attempt, 300); return; }
-      fail('no_signer', 'byted_acrawler 未就绪');
-      return;
-    }
-    var url = base;
-    try {
-      var sig = c.frontierSign({ url: location.origin + base, method: 'GET' }) || {};
-      var q = Object.keys(sig).map(function (k) {
-        return k + '=' + encodeURIComponent(sig[k]);
-      }).join('&');
-      if (q) url = base + '&' + q;
-    } catch (e) {}
-    fetch(url, { credentials: 'include', cache: 'no-store' })
-      .then(function (r) {
-        return r.text().then(function (t) {
-          var d = parse(t);
-          if (d) { done(d); return; }
-          if (tries < 3) { setTimeout(attempt, 700); return; }
-          fail('non_json', r.status + ' ' + String(t).slice(0, 120));
-        });
-      })
-      .catch(function (e) {
-        if (tries < 3) { setTimeout(attempt, 700); return; }
-        fail('fetch', String(e));
+  fetch(url, { credentials: 'include', cache: 'no-store' })
+    .then(function (r) {
+      return r.text().then(function (t) {
+        var d = parse(t);
+        if (d) { done(d); return; }
+        err('non_json', r.status + ' ' + String(t).slice(0, 120));
       });
-  }
-  setTimeout(attempt, 0);
-  return 'kicked';
+    })
+    .catch(function (e) { err('fetch', String(e)); })
+    .then(function () { window.__dyInflight = false; });
+
+  return 'started';
 })()
 ''';
+
+  /// 读页面里的结果 / 错误（返回原始字符串，由 Dart 侧 JSON 解码）
+  static const String readResultJs = 'window.__dyResult || ""';
+  static const String readErrorJs = 'window.__dyErr || ""';
 }
