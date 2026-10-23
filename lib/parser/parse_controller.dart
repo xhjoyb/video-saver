@@ -185,43 +185,26 @@ class ParseController extends ChangeNotifier {
       final startedAt = DateTime.now();
       try {
         Map<String, dynamic>? data;
-        var lastState = '';
-        // Dart 侧驱动重试：隐藏 WebView 的 setTimeout 会被节流，绝不能靠 JS 定时器
-        for (var round = 0; round < 6 && data == null; round++) {
-          String state = '';
-          try {
-            final raw = await web.runJavaScriptReturningResult(
-              DouyinParser.detailJs(id),
+        var note = '';
+        // 页面只负责同步算签名；HTTP 走 Dart，避开「隐藏 WebView 里 fetch 永久挂起」
+        for (var round = 0; round < 3 && data == null; round++) {
+          final result = await DouyinParser.fetchDetail(
+            awemeId: id,
+            ua: attempt.ua,
+            sign: (url) => _readJs(DouyinParser.signJs(url)),
+            cookieProvider: () => WebViewEnv.cookies(DouyinParser.referer),
+          );
+          data = result.$1;
+          note = result.$2;
+          if (data == null) {
+            await Future.delayed(
+              Duration(milliseconds: note == 'sign_empty' ? 600 : 400),
             );
-            state = raw.toString().replaceAll('"', '');
-          } catch (_) {}
-          lastState = state;
-          if (state == 'no_signer') {
-            await Future.delayed(const Duration(milliseconds: 400));
-            continue;
-          }
-          for (var i = 0; i < 4 && data == null; i++) {
-            await Future.delayed(const Duration(milliseconds: 400));
-            final text = await _readJs(DouyinParser.readResultJs);
-            if (text.isEmpty) continue;
-            try {
-              final decoded = jsonDecode(text);
-              if (decoded is Map<String, dynamic>) data = decoded;
-            } catch (_) {}
-          }
-        }
-        if (data == null) {
-          final errText = await _readJs(DouyinParser.readErrorJs);
-          if (errText.isNotEmpty) {
-            try {
-              final decoded = jsonDecode(errText);
-              if (decoded is Map<String, dynamic>) data = decoded;
-            } catch (_) {}
           }
         }
         final elapsed = DateTime.now().difference(startedAt).inMilliseconds;
         await DiagLog.write('douyin_diag.log', [
-          'attempt=$no state=$lastState ua=${_short(attempt.ua, 48)} url=${attempt.url}',
+          'attempt=$no note=$note ua=${_short(attempt.ua, 48)} url=${attempt.url}',
           'elapsed=${elapsed}ms result=${_short(data == null ? '' : jsonEncode(data), 260)}',
         ]);
         if (data == null) {

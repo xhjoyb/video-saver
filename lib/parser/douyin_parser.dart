@@ -1,12 +1,23 @@
+import 'dart:convert';
 import 'dart:io';
 
-/// 抖音解析：短链/长链 → aweme_id，以及在页面内触发 detail 请求的 JS
+/// 抖音解析
+///
+/// 结论（2026-10-23 真机多轮验证）：
+/// - WebView 页面里暴露同步签名器 `window.byted_acrawler.frontierSign({url, method})`
+///   → 返回 `{"X-Bogus": "…"}`；带该签名请求 detail 可 200（浏览器实测 66KB）
+/// - 但**隐藏 WebView 里发起的 fetch 会一直 pending**（既不成功也不报错，
+///   `state=inflight` 卡死），所以网络请求不能放在页面里做
+/// - 因此：页面只负责「同步算签名」，HTTP 请求交给 Dart（HttpClient 已被 B 站/快手验证可用），
+///   cookie 从原生 CookieManager 读取（含 UIFID / __ac_signature / ttwid）
 class DouyinParser {
   DouyinParser._();
 
   static const String userAgent =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+  static const String referer = 'https://www.douyin.com/';
 
   static final RegExp _urlRe = RegExp(r'https?://[^\s\u4e00-\u9fa5]+');
   static final RegExp _idRe = RegExp(r'/(?:video|note)/(\d{15,20})');
@@ -56,100 +67,129 @@ class DouyinParser {
     }
   }
 
-  /// 在 web 页面上下文里发一次 detail 请求（带页面自带的 X-Bogus 签名）
-  ///
-  /// 关键事实（2026-10-23 真机验证）：
-  /// - 页面暴露 `window.byted_acrawler.frontierSign({url, method})`，返回 `{"X-Bogus": "…"}`
-  /// - 带上 `X-Bogus` 后请求 detail：200 / 66KB / `aweme_detail` 完整；裸请求必 403
-  ///
-  /// 注意：**不要在这里用 setTimeout 调度**。隐藏 WebView 会被浏览器判定不可见，
-  /// 定时器被节流，回调可能几十秒都不触发（真机实测：`__dyResult` 一直为空）。
-  /// 因此本函数只做「同步一次尝试」：
-  /// - 返回 `have` 已有结果 / `no_signer` 签名器未就绪（由 Dart 侧稍后重试）/
-  ///   `inflight` 上一次请求还在飞 / `started` 已发出
-  /// - 成功写 `window.__dyResult`，失败写 `window.__dyErr`（都只写一次）
-  static String detailJs(String awemeId) => '''
-(function () {
-  if (window.__dyResult) return 'have';
-  var c = window.byted_acrawler;
-  if (!c || typeof c.frontierSign !== 'function') return 'no_signer';
-  if (window.__dyInflight) return 'inflight';
-  window.__dyInflight = true;
+  /// detail 接口路径 + 固定参数
+  static String detailPath(String awemeId) =>
+      '/aweme/v1/web/aweme/detail/?device_platform=webapp&aid=6383'
+      '&channel=channel_pc_web&aweme_id=$awemeId'
+      '&pc_client_type=1&version_code=170400&version_name=17.4.0'
+      '&cookie_enabled=true&screen_width=1920&screen_height=1080'
+      '&browser_language=zh-CN&browser_platform=Win32&browser_name=Chrome'
+      '&browser_version=120.0.0.0&browser_online=true&engine_name=Blink'
+      '&engine_version=120.0.0.0&os_name=Windows&os_version=10&platform=PC';
 
-  function env() {
+  /// 在页面里同步取签名（不联网、不用定时器）
+  ///
+  /// 返回 JSON 字符串（如 `{"X-Bogus":"…"}`）；签名器未就绪时返回空串。
+  static String signJs(String absoluteUrl) =>
+      "(function(){try{var c=window.byted_acrawler;"
+      "if(!c||typeof c.frontierSign!=='function')return '';"
+      "var s=c.frontierSign({url:'$absoluteUrl',method:'GET'})||{};"
+      "return JSON.stringify(s);}catch(e){return ''}})()";
+
+  /// 用签名结果补全 URL
+  static String signedUrl(String awemeId, Map<String, dynamic> signature) {
+    final base = 'https://www.douyin.com${detailPath(awemeId)}';
+    final query = signature.entries
+        .map((e) =>
+            '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent('${e.value}')}')
+        .join('&');
+    return query.isEmpty ? base : '$base&$query';
+  }
+
+  /// 把 `aweme_detail` 转成 App 内部结果结构
+  static Map<String, dynamic>? parseDetail(Map<String, dynamic> json) {
+    final detail = json['aweme_detail'];
+    if (detail is! Map) return null;
+    final video = detail['video'];
+    final v = video is Map ? video : const {};
+    final playUrl = v['play_addr'];
+    final play = playUrl is Map ? (playUrl['url_list'] as List?) ?? const [] : const [];
+
+    String firstUrl(Object? node) {
+      if (node is! Map) return '';
+      final list = (node['url_list'] as List?) ?? const [];
+      return list.isEmpty ? '' : '${list.first}';
+    }
+
+    final cover = firstUrl(v['cover']);
+    var images = <String>[];
+    final imgs = detail['images'];
+    final postInfo = detail['image_post_info'];
+    if (imgs is List && imgs.isNotEmpty) {
+      images = imgs.map((e) => firstUrl(e)).where((e) => e.isNotEmpty).toList();
+    } else if (postInfo is Map && postInfo['images'] is List) {
+      images = (postInfo['images'] as List)
+          .map((e) => firstUrl(e))
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+
     return {
-      ua: String(navigator.userAgent).slice(0, 80),
-      adt: (navigator.userAgentData && navigator.userAgentData.platform) || 'none'
+      'id': '${detail['aweme_id'] ?? ''}',
+      'desc': '${detail['desc'] ?? ''}',
+      'author': detail['author'] is Map ? '${(detail['author'] as Map)['nickname'] ?? ''}' : '',
+      'cover': cover,
+      'duration': int.tryParse('${v['duration'] ?? 0}') ?? 0,
+      'play': play.map((e) => '$e').where((e) => e.startsWith('http')).toList(),
+      'images': images,
     };
   }
-  function done(o) { try { window.__dyResult = JSON.stringify(o); } catch (e) {} }
-  function err(tag, extra) {
+
+  /// 页面签名 + Dart 侧 HTTP 拉取 detail
+  ///
+  /// [sign] 负责在 WebView 里同步算签名；[cookieProvider] 读原生 CookieManager。
+  /// 返回 `(数据结构, 说明)`：数据结构为空时，说明用于诊断（sign_empty / http_403 / non_json …）。
+  static Future<(Map<String, dynamic>?, String)> fetchDetail({
+    required String awemeId,
+    required String ua,
+    required Future<String> Function(String absoluteUrl) sign,
+    required Future<String?> Function() cookieProvider,
+  }) async {
+    final path = signedUrl(awemeId, const {}); // 先用裸 URL 让页面签名
+    final signatureText = await sign(path);
+    if (signatureText.isEmpty) return (null, 'sign_empty');
+
+    Map<String, dynamic> signature;
     try {
-      var o = env();
-      o.error = tag;
-      o.body = String(extra || '').slice(0, 160);
-      window.__dyErr = JSON.stringify(o);
-    } catch (e) {}
-  }
-  function parse(t) {
-    var j = null;
-    try { j = JSON.parse(t); } catch (e) {}
-    if (!j) return null;
-    var a = j.aweme_detail || {};
-    var v = a.video || {};
-    var play = (v.play_addr && v.play_addr.url_list) || [];
-    var cover = ((v.cover && v.cover.url_list) || [''])[0] || '';
-    var imgs = [];
-    if (a.images && a.images.length) {
-      imgs = a.images.map(function (it) { return ((it.url_list || [''])[0]); });
-    } else if (a.image_post_info && a.image_post_info.images && a.image_post_info.images.length) {
-      imgs = a.image_post_info.images.map(function (it) { return ((it.url_list || [''])[0]); });
+      final decoded = jsonDecode(signatureText);
+      if (decoded is! Map) return (null, 'sign_bad');
+      signature = decoded.map((k, v) => MapEntry('$k', '$v'));
+    } catch (_) {
+      return (null, 'sign_bad');
     }
-    var o = env();
-    o.id = a.aweme_id || '';
-    o.desc = a.desc || '';
-    o.author = (a.author && a.author.nickname) || '';
-    o.cover = cover;
-    o.duration = v.duration || 0;
-    o.play = play;
-    o.images = imgs;
-    o.via = 'x-bogus';
-    return o;
+    if (signature.isEmpty) return (null, 'sign_empty');
+
+    final uri = Uri.parse(signedUrl(awemeId, signature));
+    final cookie = (await cookieProvider()) ?? '';
+
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
+    try {
+      final request = await client.getUrl(uri);
+      request.headers.set(HttpHeaders.userAgentHeader, ua);
+      request.headers.set(HttpHeaders.refererHeader, referer);
+      request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+      if (cookie.isNotEmpty) {
+        request.headers.set(HttpHeaders.cookieHeader, cookie);
+      }
+      final response = await request.close();
+      final body = await response.transform(utf8.decoder).join();
+      if (response.statusCode != 200) {
+        final head = body.length > 80 ? body.substring(0, 80) : body;
+        return (null, 'http_${response.statusCode} ${head.replaceAll('\n', ' ')}');
+      }
+      final decoded = jsonDecode(body);
+      if (decoded is! Map<String, dynamic>) return (null, 'non_json');
+      final parsed = parseDetail(decoded);
+      if (parsed == null) {
+        final status = decoded['status_code'];
+        return (null, 'no_detail status=$status');
+      }
+      return (parsed, 'ok');
+    } catch (e) {
+      final text = e.toString();
+      return (null, 'http_err ${text.length > 80 ? text.substring(0, 80) : text}');
+    } finally {
+      client.close(force: true);
+    }
   }
-
-  var base = '/aweme/v1/web/aweme/detail/?device_platform=webapp&aid=6383'
-    + '&channel=channel_pc_web&aweme_id=$awemeId'
-    + '&pc_client_type=1&version_code=170400&version_name=17.4.0'
-    + '&cookie_enabled=true&screen_width=1920&screen_height=1080'
-    + '&browser_language=zh-CN&browser_platform=Win32&browser_name=Chrome'
-    + '&browser_version=120.0.0.0&browser_online=true&engine_name=Blink'
-    + '&engine_version=120.0.0.0&os_name=Windows&os_version=10&platform=PC';
-
-  var url = base;
-  try {
-    var sig = c.frontierSign({ url: location.origin + base, method: 'GET' }) || {};
-    var q = Object.keys(sig).map(function (k) {
-      return k + '=' + encodeURIComponent(sig[k]);
-    }).join('&');
-    if (q) url = base + '&' + q;
-  } catch (e) {}
-
-  fetch(url, { credentials: 'include', cache: 'no-store' })
-    .then(function (r) {
-      return r.text().then(function (t) {
-        var d = parse(t);
-        if (d) { done(d); return; }
-        err('non_json', r.status + ' ' + String(t).slice(0, 120));
-      });
-    })
-    .catch(function (e) { err('fetch', String(e)); })
-    .then(function () { window.__dyInflight = false; });
-
-  return 'started';
-})()
-''';
-
-  /// 读页面里的结果 / 错误（返回原始字符串，由 Dart 侧 JSON 解码）
-  static const String readResultJs = 'window.__dyResult || ""';
-  static const String readErrorJs = 'window.__dyErr || ""';
 }

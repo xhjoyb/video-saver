@@ -2,8 +2,10 @@ import 'package:flutter/services.dart';
 
 /// WebView 环境信息（从原生侧读取）
 ///
-/// 抖音对「UA 声明 Windows、Client Hints 却是 Android」这种自相矛盾的环境
-/// 会挂起接口请求，因此需要拿到与引擎一致的真实 UA 做对照尝试。
+/// 两个用途：
+/// - 拿 WebView 引擎真实 UA（与 Client Hints 一致），用于抖音兜底尝试
+/// - 读 CookieManager 里的 cookie（含 HttpOnly 的 UIFID / __ac_signature / ttwid），
+///   供 Dart 侧 HTTP 请求使用（抖音页面里 fetch 会挂死，请求必须搬到 Dart）
 class WebViewEnv {
   WebViewEnv._();
 
@@ -18,6 +20,19 @@ class WebViewEnv {
       final ua = await _channel.invokeMethod<String>('defaultUserAgent');
       if (ua != null && ua.isNotEmpty) _defaultUa = ua;
       return _defaultUa;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 读指定 URL 的 cookie（原生 CookieManager，含 HttpOnly）
+  static Future<String?> cookies(String url) async {
+    try {
+      final raw = await _channel.invokeMethod<String>('getWebViewCookies', {
+        'url': url,
+      });
+      final text = (raw ?? '').trim();
+      return text.isEmpty ? null : text;
     } catch (_) {
       return null;
     }

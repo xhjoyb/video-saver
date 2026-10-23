@@ -137,6 +137,26 @@ fetch(detailUrl + '&X-Bogus=...', { credentials: 'include' }) // → 200 / 66,75
 
 修法：JS 只做「同步一次尝试」，重试全部搬到 Dart 侧（Dart `Timer` 不受 WebView 节流影响）：Dart 每 400ms 调一次 `detailJs` 并读 `window.__dyResult`，命中签名器才发请求，最多 6 轮；失败原因写 `window.__dyErr` 供最终报错使用。
 
+### flutter-71：签名在页面、请求在 Dart（当前方案）
+
+真机日志给出决定性证据：
+
+```
+attempt=1 note=inflight   ← 页面里 fetch 发了，但永不返回
+attempt=2 note=no_signer  ← 真实 UA 下页面没有 byted_acrawler
+```
+
+隐藏 WebView 里的 `fetch` 会**永久 pending**（既不 resolve 也不 reject），所以页面只适合「同步算签名」，不适合发请求。而 `frontierSign` 恰好是同步函数。
+
+现实现：
+
+| 环节 | 做法 |
+|---|---|
+| 签名 | 注入 `byted_acrawler.frontierSign({url, method})`，同步取回 `X-Bogus`（不联网、不用定时器） |
+| 请求 | **Dart `HttpClient`** 直连 `api`，带 `Cookie`（原生 CookieManager 读，含 UIFID / `__ac_signature` / ttwid）+ `Referer` + 桌面 UA |
+| 重试 | 每层 3 轮（页面签名可能未就绪）；三层：桌面 UA → 真实 UA → 分享页 |
+| 诊断 | `douyin_diag.log` 记录 `note=`（`sign_empty` / `http_403 …` / `non_json` / `no_detail status=x` / `ok`） |
+
 ## B 站清晰度链路（`flutter-66` 定论）
 
 先纠正一个长期错误结论：**`SESSDATA` 有效不等于能拿 1080P —— `fnval=1` 通道对已登录用户同样封顶 720P。**
