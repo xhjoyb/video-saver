@@ -186,20 +186,32 @@ class ParseController extends ChangeNotifier {
       try {
         Map<String, dynamic>? data;
         var note = '';
+        // 页面加载后 UIFID / 签名器都要几秒才就绪，先给页面一点时间
+        await Future.delayed(const Duration(milliseconds: 1500));
         // 页面只负责同步算签名；HTTP 走 Dart，避开「隐藏 WebView 里 fetch 永久挂起」
-        for (var round = 0; round < 3 && data == null; round++) {
+        for (var round = 0; round < 12 && data == null; round++) {
           final result = await DouyinParser.fetchDetail(
             awemeId: id,
             ua: attempt.ua,
             sign: (url) => _readJs(DouyinParser.signJs(url)),
-            cookieProvider: () => WebViewEnv.cookies(DouyinParser.referer),
+            cookieProvider: () async {
+              final native =
+                  (await WebViewEnv.cookies(DouyinParser.referer)) ?? '';
+              if (DouyinParser.extractCookieRaw(native, 'UIFID').isNotEmpty) {
+                return native;
+              }
+              // 原生 CookieManager 没读到 UIFID 时，从页面 document.cookie 补
+              final doc = await _readJs('document.cookie');
+              final uifid = DouyinParser.extractCookieRaw(doc, 'UIFID');
+              if (uifid.isEmpty) return native;
+              return native.isEmpty ? 'UIFID=$uifid' : '$native; UIFID=$uifid';
+            },
           );
           data = result.$1;
           note = result.$2;
           if (data == null) {
-            await Future.delayed(
-              Duration(milliseconds: note == 'sign_empty' ? 600 : 400),
-            );
+            final wait = note.contains('no_uifid') ? 800 : 600;
+            await Future.delayed(Duration(milliseconds: wait));
           }
         }
         final elapsed = DateTime.now().difference(startedAt).inMilliseconds;
