@@ -186,8 +186,7 @@ class DouyinParser {
       final body = await response.transform(utf8.decoder).join();
       if (response.statusCode != 200) {
         final head = body.length > 80 ? body.substring(0, 80) : body;
-        return (null, 'http_${response.statusCode} ${head.replaceAll('
-', ' ')}');
+        return (null, 'http_${response.statusCode} ${head.replaceAll(RegExp(r'\s+'), ' ')}');
       }
       final decoded = jsonDecode(body);
       if (decoded is! Map<String, dynamic>) return (null, 'non_json');
