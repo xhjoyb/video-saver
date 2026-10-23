@@ -157,6 +157,25 @@ attempt=2 note=no_signer  ← 真实 UA 下页面没有 byted_acrawler
 | 重试 | 每层 3 轮（页面签名可能未就绪）；三层：桌面 UA → 真实 UA → 分享页 |
 | 诊断 | `douyin_diag.log` 记录 `note=`（`sign_empty` / `http_403 …` / `non_json` / `no_detail status=x` / `ok`） |
 
+### flutter-72：补上 URL 参数 `uifid`（403 → 200 的最后一步）
+
+真机日志（v71）已经能打到服务端：
+
+```
+attempt=1 note=http_403 Blocked by ArgusSecurityPlugin Uifid Not Found
+attempt=2 note=sign_empty
+attempt=3 note=http_403 Blocked by ArgusSecurityPlugin Uifid Not Found
+```
+
+说明签名已生效、请求已发出，只差 `uifid`。真机对照实验：
+
+| 请求 | 结果 |
+|---|---|
+| 签名 URL（无 uifid） | 403 `Uifid Not Found` |
+| 签名 URL + `&uifid=<cookie 里的 UIFID>` | **200 / 72,174 B / `aweme_detail` 完整** |
+
+所以 `fetchDetail` 现在会先从 Cookie 里取 `UIFID`（长度 384 的长串），拼到 URL 上**再签名**，最后附签名请求。`note` 也会区分 `sign_empty no_uifid`（cookie 里没有 UIFID）。
+
 ## B 站清晰度链路（`flutter-66` 定论）
 
 先纠正一个长期错误结论：**`SESSDATA` 有效不等于能拿 1080P —— `fnval=1` 通道对已登录用户同样封顶 720P。**
@@ -319,6 +338,7 @@ App 内开发者页面：**设置 → 开发者 → 解析探针**，把 WebView
 | `flutter-68` | 抖音改「旁路采集」：注入钩子抓页面自己的 `aweme/detail` 响应（不参与签名），兜底仍保留主动 fetch；版本升 `0.7.2` |
 | `flutter-69` | 抖音改用页面自带签名器 `byted_acrawler.frontierSign` 取 `X-Bogus` 签自己的 detail 请求（实测 200 / 66KB）；版本升 `0.7.3` |
 | `flutter-70` | 抖音去掉 JS 定时器（隐藏 WebView 会节流 `setTimeout`，导致请求从未发出），改由 Dart 侧轮询驱动重试；版本升 `0.7.4` |
+| `flutter-72` | 抖音补上 URL 参数 `uifid`（来自 Cookie 的 UIFID，384 字节），签名后再请求：真机对照 403 → **200 / 72KB**；版本升 `0.7.6` |
 
 ## 基线（回退点）
 

@@ -145,9 +145,17 @@ class DouyinParser {
     required Future<String> Function(String absoluteUrl) sign,
     required Future<String?> Function() cookieProvider,
   }) async {
-    final path = signedUrl(awemeId, const {}); // 先用裸 URL 让页面签名
-    final signatureText = await sign(path);
-    if (signatureText.isEmpty) return (null, 'sign_empty');
+    final cookie = (await cookieProvider()) ?? '';
+    // 服务端错误 `Blocked by ArgusSecurityPlugin Uifid Not Found` 的解法：
+    // uifid 必须放在 **URL 参数** 里（不是只在 cookie 里），否则一律 403
+    final uifid = extractCookie(cookie, 'UIFID');
+    var base = signedUrl(awemeId, const {});
+    if (uifid.isNotEmpty) {
+      base = '$base&uifid=${Uri.encodeQueryComponent(uifid)}';
+    }
+
+    final signatureText = await sign(base);
+    if (signatureText.isEmpty) return (null, uifid.isEmpty ? 'sign_empty no_uifid' : 'sign_empty');
 
     Map<String, dynamic> signature;
     try {
@@ -159,8 +167,11 @@ class DouyinParser {
     }
     if (signature.isEmpty) return (null, 'sign_empty');
 
-    final uri = Uri.parse(signedUrl(awemeId, signature));
-    final cookie = (await cookieProvider()) ?? '';
+    final query = signature.entries
+        .map((e) =>
+            '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent('${e.value}')}')
+        .join('&');
+    final uri = Uri.parse(query.isEmpty ? base : '$base&$query');
 
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 8);
     try {
@@ -175,14 +186,14 @@ class DouyinParser {
       final body = await response.transform(utf8.decoder).join();
       if (response.statusCode != 200) {
         final head = body.length > 80 ? body.substring(0, 80) : body;
-        return (null, 'http_${response.statusCode} ${head.replaceAll('\n', ' ')}');
+        return (null, 'http_${response.statusCode} ${head.replaceAll('
+', ' ')}');
       }
       final decoded = jsonDecode(body);
       if (decoded is! Map<String, dynamic>) return (null, 'non_json');
       final parsed = parseDetail(decoded);
       if (parsed == null) {
-        final status = decoded['status_code'];
-        return (null, 'no_detail status=$status');
+        return (null, 'no_detail status=${decoded['status_code']}');
       }
       return (parsed, 'ok');
     } catch (e) {
@@ -190,6 +201,18 @@ class DouyinParser {
       return (null, 'http_err ${text.length > 80 ? text.substring(0, 80) : text}');
     } finally {
       client.close(force: true);
+    }
+  }
+
+  /// 从 cookie 串里取指定项（URL 解码一次，失败则用原值）
+  static String extractCookie(String cookie, String name) {
+    final m = RegExp('(?:^|;\s*)' + name + '=([^;]+)').firstMatch(cookie);
+    if (m == null) return '';
+    final raw = m.group(1) ?? '';
+    try {
+      return Uri.decodeComponent(raw);
+    } catch (_) {
+      return raw;
     }
   }
 }
