@@ -120,6 +120,17 @@
 - 主动兜底前先看 `__dyResult` 是否已有结果，避免把成功结果覆盖成 403；
 - 每次尝试写 `douyin_diag.log`（含 `capture=true/false`、UA、耗时、结果摘要，不含 cookie 值）。
 
+### flutter-69：用页面自带签名器（当前方案）
+
+`flutter-68` 的「旁路采集」经真机验证无效（页面并不总会发 detail 请求）。最终方案是**用页面自带的签名器签自己的请求**：
+
+```js
+window.byted_acrawler.frontierSign({ url, method: 'GET' })   // → {"X-Bogus":"6gvHFc4lhglGghnL"}
+fetch(detailUrl + '&X-Bogus=...', { credentials: 'include' }) // → 200 / 66,755 B / aweme_detail 完整
+```
+
+裸请求（无签名）必然 403。实现：直连视频页 → 等 `byted_acrawler` 就绪（≤5s）→ 取 `X-Bogus` → fetch detail；失败换真实 UA / 分享页各重试一次，JS 内部再重试 3 次（700ms 间隔）。
+
 ## B 站清晰度链路（`flutter-66` 定论）
 
 先纠正一个长期错误结论：**`SESSDATA` 有效不等于能拿 1080P —— `fnval=1` 通道对已登录用户同样封顶 720P。**
@@ -280,6 +291,7 @@ App 内开发者页面：**设置 → 开发者 → 解析探针**，把 WebView
 | `flutter-66` | **B 站真正解锁 1080P**：确认 durl 通道封顶 720P，改走 DASH（`fnval=4048`）取 1080P，原生 `MediaMuxer` 合流音视频；版本升 `0.7.0` |
 | `flutter-67` | 抖音解析修复：直连视频页 + 真实 UA 兜底 + fetch 6s 超时/XHR 兜底 + `douyin_diag.log`；版本升 `0.7.1` |
 | `flutter-68` | 抖音改「旁路采集」：注入钩子抓页面自己的 `aweme/detail` 响应（不参与签名），兜底仍保留主动 fetch；版本升 `0.7.2` |
+| `flutter-69` | 抖音改用页面自带签名器 `byted_acrawler.frontierSign` 取 `X-Bogus` 签自己的 detail 请求（实测 200 / 66KB）；版本升 `0.7.3` |
 
 ## 基线（回退点）
 

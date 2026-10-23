@@ -38,18 +38,10 @@ class ParseController extends ChangeNotifier {
           },
           onPageStarted: (url) {
             // 小红书风控会检测自动化特征，页面一开始就注入伪装脚本
-            if (_mode == 'xhs') {
-              web
-                  .runJavaScript(XiaohongshuParser.browserMaskJs)
-                  .catchError((Object _) {});
-              return;
-            }
-            // 抖音：页面一启动就挂采集钩子，旁路捕获页面自己发出的 detail 响应
-            if (_mode == 'douyin') {
-              web
-                  .runJavaScript(DouyinParser.captureJs)
-                  .catchError((Object _) {});
-            }
+            if (_mode != 'xhs') return;
+            web
+                .runJavaScript(XiaohongshuParser.browserMaskJs)
+                .catchError((Object _) {});
           },
           onWebResourceError: (e) {
             if (_stage == ParseStage.loading && e.isForMainFrame == true) {
@@ -133,7 +125,7 @@ class ParseController extends ChangeNotifier {
     _stage = ParseStage.loading;
     notifyListeners();
 
-    _timeout = Timer(const Duration(seconds: 50), () {
+    _timeout = Timer(const Duration(seconds: 75), () {
       if (busy) _fail('解析超时，请检查网络后重试');
     });
 
@@ -167,25 +159,14 @@ class ParseController extends ChangeNotifier {
       return;
     }
 
-    // 逐层尝试：不同 URL + UA 组合。
-    // 真机发现 App 里 UA 被改成 Windows、Client Hints 仍是 Android，
-    // 这种自相矛盾的环境下页面 fetch 会一直 pending（既不成功也不报错）。
+    // 逐层尝试：用页面自带的签名器（byted_acrawler.frontierSign）给请求加 X-Bogus。
+    // 裸请求不带签名必然 403，所以每层都是「注入 JS → 取签名 → fetch」。
     final desktopUa = DouyinParser.userAgent;
     final nativeUa = await WebViewEnv.defaultUserAgent();
-    // 前两次：被动采集（页面自己发请求，签名由页面 SDK 负责，成功率最高）
-    // 最后一次：主动 fetch 兜底（裸请求可能 403，但能给明确错误）
-    final attempts = <({String url, String ua, bool capture})>[
-      (url: 'https://www.douyin.com/video/$id', ua: desktopUa, capture: true),
-      (
-        url: 'https://www.douyin.com/video/$id',
-        ua: nativeUa ?? desktopUa,
-        capture: true
-      ),
-      (
-        url: 'https://www.iesdouyin.com/share/video/$id/',
-        ua: desktopUa,
-        capture: false
-      ),
+    final attempts = <({String url, String ua})>[
+      (url: 'https://www.douyin.com/video/$id', ua: desktopUa),
+      (url: 'https://www.douyin.com/video/$id', ua: nativeUa ?? desktopUa),
+      (url: 'https://www.iesdouyin.com/share/video/$id/', ua: desktopUa),
     ];
 
     for (var i = 0; i < attempts.length; i++) {
@@ -203,18 +184,11 @@ class ParseController extends ChangeNotifier {
       }
       final startedAt = DateTime.now();
       try {
-        Map<String, dynamic>? data;
-        if (attempt.capture) {
-          // 采集钩子已在 onPageStarted 注入，这里只等页面自己的请求回填结果
-          await Future.delayed(const Duration(milliseconds: 1200));
-          data = await _waitResult();
-        } else {
-          await web.runJavaScriptReturningResult(DouyinParser.detailJs(id));
-          data = await _waitResult();
-        }
+        await web.runJavaScriptReturningResult(DouyinParser.detailJs(id));
+        final data = await _waitResult();
         final elapsed = DateTime.now().difference(startedAt).inMilliseconds;
         await DiagLog.write('douyin_diag.log', [
-          'attempt=$no capture=${attempt.capture} ua=${_short(attempt.ua, 48)} url=${attempt.url}',
+          'attempt=$no ua=${_short(attempt.ua, 48)} url=${attempt.url}',
           'elapsed=${elapsed}ms result=${_short(data == null ? '' : jsonEncode(data), 260)}',
         ]);
         if (data == null) {
@@ -254,8 +228,8 @@ class ParseController extends ChangeNotifier {
       text.length > max ? text.substring(0, max) : text;
 
   Future<Map<String, dynamic>?> _waitResult() async {
-    // 25 × 400ms = 10s：JS 里 fetch 6s 超时后会走 XHR 兜底，10s 足够拿到结论
-    for (var i = 0; i < 25; i++) {
+    // 35 × 400ms = 14s：JS 里最多等 5s 签名器 + 3 次签名请求
+    for (var i = 0; i < 35; i++) {
       await Future.delayed(const Duration(milliseconds: 400));
       try {
         final raw = await web.runJavaScriptReturningResult('window.__dyResult || ""');
