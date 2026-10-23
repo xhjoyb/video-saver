@@ -146,16 +146,49 @@ class DouyinParser {
     required Future<String?> Function() cookieProvider,
   }) async {
     final cookie = (await cookieProvider()) ?? '';
-    // 服务端错误 `Blocked by ArgusSecurityPlugin Uifid Not Found` 的解法：
-    // uifid 必须放在 **URL 参数** 里（不是只在 cookie 里），否则一律 403
-    final uifid = extractCookie(cookie, 'UIFID');
-    var base = signedUrl(awemeId, const {});
-    if (uifid.isNotEmpty) {
-      base = '$base&uifid=${Uri.encodeQueryComponent(uifid)}';
+    final rawUifid = extractCookieRaw(cookie, 'UIFID');
+    if (rawUifid.isEmpty) return (null, 'sign_empty no_uifid');
+
+    // CookieManager 里的 UIFID 可能已 URL 编码，服务端登记的是「原样」值；
+    // 两种形态都试一遍，命中哪个由 note 里的 uifid=dec/raw 说明。
+    final candidates = <String>[];
+    final decoded = _tryDecode(rawUifid);
+    if (decoded.isNotEmpty && decoded != rawUifid) candidates.add(decoded);
+    candidates.add(rawUifid);
+
+    var lastNote = '';
+    for (final uifid in candidates) {
+      final result = await _requestOnce(
+        awemeId: awemeId,
+        ua: ua,
+        uifid: uifid,
+        cookie: cookie,
+        sign: sign,
+      );
+      if (result.$1 != null) {
+        final tag = identical(uifid, decoded) || uifid == decoded
+            ? 'ok uifid=dec len=${uifid.length}'
+            : 'ok uifid=raw len=${uifid.length} pct=${rawUifid.contains('%')}';
+        return (result.$1, tag);
+      }
+      lastNote = result.$2;
     }
+    return (null, '$lastNote uifid_len=${rawUifid.length} pct=${rawUifid.contains('%')}');
+  }
+
+  /// 单次请求：签名 + Dart HTTP
+  static Future<(Map<String, dynamic>?, String)> _requestOnce({
+    required String awemeId,
+    required String ua,
+    required String uifid,
+    required String cookie,
+    required Future<String> Function(String absoluteUrl) sign,
+  }) async {
+    var base = signedUrl(awemeId, const {});
+    base = '$base&uifid=${Uri.encodeQueryComponent(uifid)}';
 
     final signatureText = await sign(base);
-    if (signatureText.isEmpty) return (null, uifid.isEmpty ? 'sign_empty no_uifid' : 'sign_empty');
+    if (signatureText.isEmpty) return (null, 'sign_empty');
 
     Map<String, dynamic> signature;
     try {
@@ -188,11 +221,11 @@ class DouyinParser {
         final head = body.length > 80 ? body.substring(0, 80) : body;
         return (null, 'http_${response.statusCode} ${head.replaceAll(RegExp(r'\s+'), ' ')}');
       }
-      final decoded = jsonDecode(body);
-      if (decoded is! Map<String, dynamic>) return (null, 'non_json');
-      final parsed = parseDetail(decoded);
+      final decodedBody = jsonDecode(body);
+      if (decodedBody is! Map<String, dynamic>) return (null, 'non_json');
+      final parsed = parseDetail(decodedBody);
       if (parsed == null) {
-        return (null, 'no_detail status=${decoded['status_code']}');
+        return (null, 'no_detail status=${decodedBody['status_code']}');
       }
       return (parsed, 'ok');
     } catch (e) {
@@ -203,15 +236,21 @@ class DouyinParser {
     }
   }
 
-  /// 从 cookie 串里取指定项（URL 解码一次，失败则用原值）
-  static String extractCookie(String cookie, String name) {
-    final m = RegExp('(?:^|;\s*)' + name + '=([^;]+)').firstMatch(cookie);
-    if (m == null) return '';
-    final raw = m.group(1) ?? '';
+  static String _tryDecode(String value) {
     try {
-      return Uri.decodeComponent(raw);
+      return Uri.decodeComponent(value);
     } catch (_) {
-      return raw;
+      return value;
     }
+  }
+
+  /// 从 cookie 串里取指定项（原样，不做解码）
+  static String extractCookieRaw(String cookie, String name) {
+    final m = RegExp('(?:^|;\s*)' + name + '=([^;]+)').firstMatch(cookie);
+    var v = m == null ? '' : (m.group(1) ?? '');
+    if (v.length >= 2 && v.startsWith('"') && v.endsWith('"')) {
+      v = v.substring(1, v.length - 1);
+    }
+    return v;
   }
 }

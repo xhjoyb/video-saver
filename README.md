@@ -339,6 +339,7 @@ App 内开发者页面：**设置 → 开发者 → 解析探针**，把 WebView
 | `flutter-69` | 抖音改用页面自带签名器 `byted_acrawler.frontierSign` 取 `X-Bogus` 签自己的 detail 请求（实测 200 / 66KB）；版本升 `0.7.3` |
 | `flutter-70` | 抖音去掉 JS 定时器（隐藏 WebView 会节流 `setTimeout`，导致请求从未发出），改由 Dart 侧轮询驱动重试；版本升 `0.7.4` |
 | `flutter-72` | 抖音补上 URL 参数 `uifid`（来自 Cookie 的 UIFID，384 字节），签名后再请求：真机对照 403 → **200 / 72KB**；版本升 `0.7.6` |
+| `flutter-74` | 抖音 uifid 双形态尝试（原样 / URL 解码各试一次）+ 去引号，note 记录 `uifid_len/pct`；版本升 `0.7.7` |
 
 ## 基线（回退点）
 
