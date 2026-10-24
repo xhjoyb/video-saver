@@ -77,6 +77,14 @@ class DouyinParser {
       '&browser_version=120.0.0.0&browser_online=true&engine_name=Blink'
       '&engine_version=120.0.0.0&os_name=Windows&os_version=10&platform=PC';
 
+
+  /// 页面环境诊断（失败时写进 note，用来判断到底加载到了什么）
+  static const String envJs =
+      "(function(){try{var ck=document.cookie.split('; ').map(function(x){return x.split('=')[0]});"
+      "return JSON.stringify({rs:document.readyState,url:String(location.href).slice(0,90),"
+      "acr:typeof window.byted_acrawler,ck:ck.slice(0,20),ckLen:document.cookie.length,"
+      "title:String(document.title).slice(0,40)});}catch(e){return ''}})()";
+
   /// 在页面里同步取签名（不联网、不用定时器）
   ///
   /// 返回 JSON 字符串（如 `{"X-Bogus":"…"}`）；签名器未就绪时返回空串。

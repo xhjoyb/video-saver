@@ -131,7 +131,7 @@ class ParseController extends ChangeNotifier {
 
     try {
       // 直接打开视频页：少一跳 302，也避免分享页跳转带入的 previous_page 参数
-      await web.loadRequest(Uri.parse('https://www.douyin.com/video/$id'));
+      await web.loadRequest(Uri.parse('https://www.iesdouyin.com/share/video/$id/'));
     } catch (e) {
       _fail('页面加载失败：$e');
     }
@@ -164,9 +164,9 @@ class ParseController extends ChangeNotifier {
     final desktopUa = DouyinParser.userAgent;
     final nativeUa = await WebViewEnv.defaultUserAgent();
     final attempts = <({String url, String ua})>[
+      (url: 'https://www.iesdouyin.com/share/video/$id/', ua: desktopUa),
       (url: 'https://www.douyin.com/video/$id', ua: desktopUa),
       (url: 'https://www.douyin.com/video/$id', ua: nativeUa ?? desktopUa),
-      (url: 'https://www.iesdouyin.com/share/video/$id/', ua: desktopUa),
     ];
 
     for (var i = 0; i < attempts.length; i++) {
@@ -213,6 +213,10 @@ class ParseController extends ChangeNotifier {
             final wait = note.contains('no_uifid') ? 800 : 600;
             await Future.delayed(Duration(milliseconds: wait));
           }
+        }
+        if (data == null) {
+          final env = await _readJs(DouyinParser.envJs);
+          if (env.isNotEmpty) note = '$note env=${_short(env, 200)}';
         }
         final elapsed = DateTime.now().difference(startedAt).inMilliseconds;
         await DiagLog.write('douyin_diag.log', [
