@@ -355,14 +355,18 @@ class _ParseScreenState extends State<ParseScreen> with WidgetsBindingObserver {
             ],
           ),
         ),
-        // 隐藏 WebView：放在屏幕外，保持正常尺寸以便页面 JS 正常执行
+        // 隐藏 WebView：必须留在可视区域内（尺寸 1×1 + 不接管触摸），
+        // 放到屏幕外会被系统视为不可见 → 页面定时器/网络被节流，
+        // 抖音的挑战脚本跑不完（拿不到正式 UIFID，页面被弹到精选页）
         Positioned(
-          left: -1200,
-          top: -1200,
-          child: SizedBox(
-            width: 420,
-            height: 900,
-            child: WebViewWidget(controller: _parse.web),
+          left: 0,
+          top: 0,
+          child: IgnorePointer(
+            child: SizedBox(
+              width: 1,
+              height: 1,
+              child: WebViewWidget(controller: _parse.web),
+            ),
           ),
         ),
       ],

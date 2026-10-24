@@ -131,7 +131,7 @@ class ParseController extends ChangeNotifier {
 
     try {
       // 直接打开视频页：少一跳 302，也避免分享页跳转带入的 previous_page 参数
-      await web.loadRequest(Uri.parse('https://www.iesdouyin.com/share/video/$id/'));
+      await web.loadRequest(Uri.parse('https://www.douyin.com/video/$id'));
     } catch (e) {
       _fail('页面加载失败：$e');
     }
@@ -161,11 +161,32 @@ class ParseController extends ChangeNotifier {
 
     // 逐层尝试：用页面自带的签名器（byted_acrawler.frontierSign）给请求加 X-Bogus。
     // 裸请求不带签名必然 403，所以每层都是「注入 JS → 取签名 → fetch」。
+    // 抖音：先让页面完成一次会话初始化（挑战 → 正式 UIFID）。
+    // 否则视频页会被重定向到「精选」，签名器与 UIFID 都拿不到。
+    var uifidReady = false;
+    try {
+      var cookie = (await WebViewEnv.cookies(DouyinParser.referer)) ?? '';
+      if (DouyinParser.extractCookieRaw(cookie, 'UIFID').isNotEmpty) {
+        uifidReady = true;
+      } else {
+        await web.loadRequest(Uri.parse('https://www.douyin.com/'));
+        for (var i = 0; i < 20; i++) {
+          await Future.delayed(const Duration(milliseconds: 500));
+          cookie = (await WebViewEnv.cookies(DouyinParser.referer)) ?? '';
+          if (DouyinParser.extractCookieRaw(cookie, 'UIFID').isNotEmpty) {
+            uifidReady = true;
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+    await DiagLog.write('douyin_diag.log', ['bootstrap uifid=$uifidReady']);
+
     final desktopUa = DouyinParser.userAgent;
     final nativeUa = await WebViewEnv.defaultUserAgent();
     final attempts = <({String url, String ua})>[
-      (url: 'https://www.iesdouyin.com/share/video/$id/', ua: desktopUa),
       (url: 'https://www.douyin.com/video/$id', ua: desktopUa),
+      (url: 'https://www.iesdouyin.com/share/video/$id/', ua: desktopUa),
       (url: 'https://www.douyin.com/video/$id', ua: nativeUa ?? desktopUa),
     ];
 

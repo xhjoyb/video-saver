@@ -342,6 +342,7 @@ App 内开发者页面：**设置 → 开发者 → 解析探针**，把 WebView
 | `flutter-74` | 抖音 uifid 双形态尝试（原样 / URL 解码各试一次）+ 去引号，note 记录 `uifid_len/pct`；版本升 `0.7.7` |
 | `flutter-75` | 抖音 cookie 回退：原生 CookieManager 无 UIFID 时从页面 `document.cookie` 合并；页加载后等 1.5s、每层最多 12 轮（0.6–0.8s）；版本升 `0.7.8` |
 | `flutter-76` | 抖音恢复「分享页优先」加载（旧会话可用路径），失败时把页面环境（readyState/URL/acrawler/cookie 名）写进 note；版本升 `0.7.9` |
+| `flutter-77` | 抖音根因修复：隐藏 WebView 移入可视区（1×1，不再被判定不可见）＋解析前先 bootstrap 会话（等正式 UIFID，避免视频页被重定向到「精选」）；note 日志加 `bootstrap uifid=` 与 `env=`；版本升 `0.8.0` |
 
 ## 基线（回退点）
 
